@@ -1,0 +1,7 @@
+(executable
+ (public_name type_driven_search)
+ (name type_driven_search)
+ (libraries))
+
+(cram
+ (deps %{bin:type_driven_search}))
