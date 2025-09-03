@@ -18,11 +18,27 @@ let parsing_test input expected =
   title, exec
 ;;
 
-let test_parse_void = parsing_test "void ()" Signature.{ return = "void"; params = [] }
-let test_parse_int = parsing_test "int ()" Signature.{ return = "int"; params = [] }
+let make_signature return params =
+  Signature.
+    { return = Signature.Ctype.parse return
+    ; params = List.map Signature.Ctype.parse params
+    }
+;;
 
-let test_parse_one_param =
-  parsing_test "int (char)" Signature.{ return = "int"; params = [ "char" ] }
+let test_parse_void = parsing_test "void ()" @@ make_signature "void" []
+let test_parse_int = parsing_test "int ()" @@ make_signature "int" []
+let test_parse_one_param = parsing_test "int (char)" @@ make_signature "int" [ "char" ]
+
+let test_parse_two_param =
+  parsing_test "int (char, int)" @@ make_signature "int" [ "char"; "int" ]
+;;
+
+let test_parse_qualifier =
+  parsing_test "int (char**, int)" @@ make_signature "int" [ "char**"; "int" ]
+;;
+
+let test_condense_qualifier =
+  parsing_test "int (char * *, int)" @@ make_signature "int" [ "char**"; "int" ]
 ;;
 
 let test (name, exec) = Alcotest.test_case name `Quick exec
@@ -31,5 +47,14 @@ let suites l = List.map suite l
 
 let () =
   Alcotest.run "Signature"
-  @@ suites [ "Parse", [ test_parse_void; test_parse_int; test_parse_one_param ] ]
+  @@ suites
+       [ ( "Parse"
+         , [ test_parse_void
+           ; test_parse_int
+           ; test_parse_one_param
+           ; test_parse_two_param
+           ; test_parse_qualifier
+           ; test_condense_qualifier
+           ] )
+       ]
 ;;
