@@ -19,7 +19,17 @@ let parsing_test input expected =
 ;;
 
 let test_parse_void = parsing_test "void ()" Signature.{ return = "void"; params = [] }
+let test_parse_int = parsing_test "int ()" Signature.{ return = "int"; params = [] }
+
+let test_parse_one_param =
+  parsing_test "int (char)" Signature.{ return = "int"; params = [ "char" ] }
+;;
+
 let test (name, exec) = Alcotest.test_case name `Quick exec
 let suite (name, tests) = name, List.map test tests
 let suites l = List.map suite l
-let () = Alcotest.run "Signature" @@ suites [ "Parse", [ test_parse_void ] ]
+
+let () =
+  Alcotest.run "Signature"
+  @@ suites [ "Parse", [ test_parse_void; test_parse_int; test_parse_one_param ] ]
+;;
