@@ -1,7 +1,18 @@
 (executable
  (public_name type_driven_search)
  (name type_driven_search)
+ (modules type_driven_search)
  (libraries))
+
+(library
+ (name signature)
+ (modules signature)
+ (libraries))
+
+(tests
+ (names signature_test)
+ (modules signature_test)
+ (libraries alcotest signature))
 
 (cram
  (deps %{bin:type_driven_search}))
