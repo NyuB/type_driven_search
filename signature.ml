@@ -1,3 +1,108 @@
+module Parser = struct
+  type input = string * int
+  type 'a t = input -> (input * 'a) option
+
+  let map (f : 'a -> 'b) (t : 'a t) : 'b t =
+    fun input -> Option.map (fun (input, a) -> input, f a) (t input)
+  ;;
+
+  let option_flat_map f opt = Option.bind opt f
+
+  let flat_map (f : 'a -> 'b t) (t : 'a t) : 'b t =
+    fun input -> t input |> option_flat_map (fun (input, value) -> f value @@ input)
+  ;;
+
+  let keyword kw : unit t =
+    let kwl = String.length kw in
+    fun (s, i) ->
+      let l = String.length s in
+      if l - i < kwl
+      then None
+      else (
+        let sub = String.sub s i kwl in
+        if String.equal sub kw then Some ((s, i + kwl), ()) else None)
+  ;;
+
+  let identifier_symbol = function
+    | 'A' .. 'Z' | 'a' .. 'z' | '_' -> true
+    | _ -> false
+  ;;
+
+  let identifier : string t =
+    fun (s, i) ->
+    let l = String.length s in
+    let rec aux j =
+      if j >= l || (not @@ identifier_symbol (String.get s j))
+      then
+        if j == i
+        then None
+        else (
+          let res = String.sub s i (j - i) in
+          Some ((s, j), res))
+      else aux (j + 1)
+    in
+    aux i
+  ;;
+
+  let zero_or_more (t : 'a t) : 'a list t =
+    let rec aux acc input =
+      match t input with
+      | None -> Some (input, List.rev acc)
+      | Some (input, value) -> aux (value :: acc) input
+    in
+    aux []
+  ;;
+
+  let success v t = map (fun _ -> v) t
+  let discard t = map (fun _ -> ()) t
+
+  let skip (t : 'b t) (previous : 'a t) : 'a t =
+    previous |> flat_map (fun v -> success v t)
+  ;;
+
+  let list ~prefix ~suffix ~sep (t : 'a t) : 'a list t =
+    let rec aux acc input =
+      match t input with
+      | None -> Some (input, List.rev acc)
+      | Some (input, value) ->
+        (match sep input with
+         | None -> aux (value :: acc) input
+         | Some (input, _) -> aux (value :: acc) input)
+    in
+    discard prefix |> flat_map (fun () -> aux []) |> skip suffix
+  ;;
+
+  let take_while pred : string t =
+    fun (s, i) ->
+    let l = String.length s in
+    let rec aux j =
+      if j >= l || (not @@ pred (String.get s j))
+      then Some ((s, j), String.sub s i (j - i))
+      else aux (j + 1)
+    in
+    aux i
+  ;;
+
+  let whitespaces = take_while (( = ) ' ')
+  let combine (b : 'b t) (a : 'a t) = a |> flat_map (fun va -> map (fun vb -> va, vb) b)
+
+  let combine2 (c : 'c t) (ab : ('a * 'b) t) =
+    ab |> flat_map (fun (va, vb) -> map (fun vc -> va, vb, vc) c)
+  ;;
+
+  let combine3 (d : 'd t) (abc : ('a * 'b * 'c) t) =
+    abc |> flat_map (fun (va, vb, vc) -> map (fun vd -> va, vb, vc, vd) d)
+  ;;
+
+  let parse t input = t input
+
+  let parse_full t input =
+    match parse t (input, 0) with
+    | Some ((s, i), value) -> if String.length s == i then Some value else None
+    | None -> None
+  ;;
+end
+
 module Ctype = struct
   type t =
     | Atom of string
@@ -11,26 +116,28 @@ module Ctype = struct
   ;;
 
   let atom a = Atom a
+  let pointer a = Pointer a
 
-  let parse param =
-    let rec parse_stars current i =
-      if i >= String.length param
-      then current
-      else if String.get param i == '*'
-      then parse_stars (Pointer current) (i + 1)
-      else parse_stars current (i + 1)
-    in
-    let rec aux current i =
-      if i >= String.length param
-      then Atom current
-      else (
-        let c = String.get param i in
-        match c with
-        | 'a' .. 'z' | 'A' .. 'Z' -> aux (String.cat current (Char.escaped c)) (i + 1)
-        | _ -> parse_stars (Atom current) i)
-    in
-    aux "" 0
+  let pointer_n a n =
+    let rec aux n t = if n <= 0 then t else aux (n - 1) (Pointer t) in
+    aux n (Atom a)
   ;;
+
+  let star_parser =
+    let open Parser in
+    discard whitespaces |> flat_map (fun () -> keyword "*")
+  ;;
+
+  let parser : t Parser.t =
+    let open Parser in
+    discard whitespaces
+    |> flat_map (fun () -> identifier)
+    |> skip whitespaces
+    |> combine @@ zero_or_more star_parser
+    |> map (fun (id, stars) -> pointer_n id (List.length stars))
+  ;;
+
+  let parse param = Parser.parse_full parser param |> Option.get (* FIXME return option *)
 
   let rec string_of_t = function
     | Atom s -> s
@@ -71,17 +178,17 @@ let trim_last_paren params =
 
 let remove_empty l = List.filter (fun s -> String.length s > 0) l
 
-let parse str : t option =
-  match String.split_on_char '(' str with
-  | return :: params ->
-    let params = trim_last_paren (String.concat "(" params) in
-    Some
-      { return = Atom (String.trim return)
-      ; params =
-          String.split_on_char ',' params
-          |> List.map String.trim
-          |> remove_empty
-          |> List.map Ctype.parse
-      }
-  | [] -> None
+let parser =
+  let open Parser in
+  let sep = discard whitespaces |> flat_map (fun () -> keyword ",") |> skip whitespaces in
+  let prefix = discard whitespaces |> flat_map (fun () -> keyword "(") |> skip whitespaces
+  and suffix =
+    discard whitespaces |> flat_map (fun () -> keyword ")") |> skip whitespaces
+  in
+  discard whitespaces
+  |> flat_map (fun () -> Ctype.parser)
+  |> combine @@ list ~prefix ~suffix ~sep Ctype.parser
+  |> map (fun (return, params) -> { return; params })
 ;;
+
+let parse str : t option = Parser.parse_full parser str
