@@ -12,7 +12,7 @@ module Parser = struct
     fun input -> t input |> option_flat_map (fun (input, value) -> f value @@ input)
   ;;
 
-  let keyword kw : unit t =
+  let keyword kw : string t =
     let kwl = String.length kw in
     fun (s, i) ->
       let l = String.length s in
@@ -20,7 +20,7 @@ module Parser = struct
       then None
       else (
         let sub = String.sub s i kwl in
-        if String.equal sub kw then Some ((s, i + kwl), ()) else None)
+        if String.equal sub kw then Some ((s, i + kwl), kw) else None)
   ;;
 
   let identifier_symbol = function
@@ -51,6 +51,21 @@ module Parser = struct
       | Some (input, value) -> aux (value :: acc) input
     in
     aux []
+  ;;
+
+  let first_of (parsers : 'a t list) : 'a t =
+    fun input ->
+    List.fold_left
+      (fun acc parser -> if Option.is_some acc then acc else parser input)
+      None
+      parsers
+  ;;
+
+  let option (t : 'a t) : 'a option t =
+    fun input ->
+    match t input with
+    | Some (input, value) -> Some (input, Some value)
+    | None -> Some (input, None)
   ;;
 
   let success v t = map (fun _ -> v) t
@@ -118,12 +133,13 @@ end
 module Ctype = struct
   type t =
     | Atom of string
+    | Const of t
     | Pointer of t
 
   let rec equal a b =
     match a, b with
     | Atom sa, Atom sb -> String.equal sa sb
-    | Pointer pa, Pointer pb -> equal pa pb
+    | Pointer a, Pointer b | Const a, Const b -> equal a b
     | _ -> false
   ;;
 
@@ -135,9 +151,20 @@ module Ctype = struct
     aux n (Atom a)
   ;;
 
-  let star_parser =
+  let qualifier_parser =
     let open Parser in
-    discard whitespaces |> flat_map (fun () -> keyword "*")
+    discard whitespaces |> flat_map (fun () -> first_of [ keyword "*"; keyword "const" ])
+  ;;
+
+  let qualify t qualifiers =
+    List.fold_left
+      (fun t qualifier ->
+         match qualifier with
+         | "*" -> Pointer t
+         | "const" -> Const t
+         | _ -> failwith (String.cat "Unknown qualifier: " qualifier))
+      t
+      qualifiers
   ;;
 
   let parser : t Parser.t =
@@ -145,14 +172,17 @@ module Ctype = struct
     discard whitespaces
     ||> identifier
     |. whitespaces
-    |* zero_or_more star_parser
-    |/ fun (id, stars) -> pointer_n id (List.length stars)
+    |* zero_or_more qualifier_parser
+    |/ fun (id, stars) -> qualify (Atom id) stars
   ;;
 
   let parse param = Parser.parse_full parser param |> Option.get (* FIXME return option *)
 
   let rec string_of_t = function
     | Atom s -> s
+    | Const t ->
+      let ts = string_of_t t in
+      String.cat ts " const"
     | Pointer p ->
       let ps = string_of_t p in
       String.cat ps "*"

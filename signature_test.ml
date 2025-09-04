@@ -42,25 +42,34 @@ let parsing_fail_test
 ;;
 
 let test_keyword_parsing =
-  parsing_test ~testable:Alcotest.unit "keyword" (Signature.Parser.keyword "kw") "kw" ()
+  parsing_test
+    ~testable:Alcotest.string
+    "keyword"
+    (Signature.Parser.keyword "kw")
+    "kw"
+    "kw"
 ;;
 
 let test_list_parsing =
   let open Signature.Parser in
   let parser =
-    list ~sep:(keyword ",") ~prefix:(keyword "(") ~suffix:(keyword ")") (keyword "kw")
+    list
+      ~sep:(keyword ",")
+      ~prefix:(keyword "(")
+      ~suffix:(keyword ")")
+      (first_of [ keyword "kw"; keyword "mot-clef"; keyword "keyword" ])
   in
   parsing_test
-    ~testable:(Alcotest.list Alcotest.unit)
+    ~testable:(Alcotest.list Alcotest.string)
     "keyword list"
     parser
-    "(kw,kw,kw)"
-    [ (); (); () ]
+    "(kw,mot-clef,keyword)"
+    [ "kw"; "mot-clef"; "keyword" ]
 ;;
 
 let test_keyword_fail_parsing =
   parsing_fail_test
-    ~testable:Alcotest.unit
+    ~testable:Alcotest.string
     "keyword 'kw'"
     (Signature.Parser.keyword "kw")
     "notkw"
@@ -98,12 +107,16 @@ let test_signature_two_param =
   signature_parsing_test "int (char, int)" @@ make_signature "int" [ "char"; "int" ]
 ;;
 
-let test_signature_qualifier =
+let test_signature_pointer =
   signature_parsing_test "int (char**, int)" @@ make_signature "int" [ "char**"; "int" ]
 ;;
 
-let test_condense_qualifier =
+let test_condense_pointer =
   signature_parsing_test "int (char * *, int)" @@ make_signature "int" [ "char**"; "int" ]
+;;
+
+let test_signature_const =
+  signature_parsing_test "void (char const*)" @@ make_signature "void" [ "char const*" ]
 ;;
 
 let test (name, exec) = Alcotest.test_case name `Quick exec
@@ -120,8 +133,9 @@ let () =
            ; test_signature_int
            ; test_signature_one_param
            ; test_signature_two_param
-           ; test_signature_qualifier
-           ; test_condense_qualifier
+           ; test_signature_pointer
+           ; test_condense_pointer
+           ; test_signature_const
            ] )
        ]
 ;;
