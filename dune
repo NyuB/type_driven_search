@@ -7,12 +7,17 @@
 (library
  (name signature)
  (modules signature)
+ (libraries parsers))
+
+(library
+ (name parsers)
+ (modules parsers)
  (libraries))
 
 (tests
- (names signature_test)
- (modules signature_test)
- (libraries alcotest signature))
+ (names tests)
+ (modules tests)
+ (libraries alcotest signature parsers))
 
 (cram
  (deps %{bin:type_driven_search}))

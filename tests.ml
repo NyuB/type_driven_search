@@ -18,7 +18,7 @@ let parsing_test
       (Alcotest.option testable)
       "Parsing succeeds"
       (Some expected)
-      (Signature.Parser.parse_full parser input)
+      (Parsers.parse_full parser input)
   in
   title, exec
 ;;
@@ -36,22 +36,17 @@ let parsing_fail_test
       (Alcotest.option testable)
       "Parsing succeeds"
       None
-      (Signature.Parser.parse_full parser input)
+      (Parsers.parse_full parser input)
   in
   title, exec
 ;;
 
 let test_keyword_parsing =
-  parsing_test
-    ~testable:Alcotest.string
-    "keyword"
-    (Signature.Parser.keyword "kw")
-    "kw"
-    "kw"
+  parsing_test ~testable:Alcotest.string "keyword" (Parsers.keyword "kw") "kw" "kw"
 ;;
 
 let test_list_parsing =
-  let open Signature.Parser in
+  let open Parsers in
   let parser =
     list
       ~sep:(keyword ",")
@@ -71,7 +66,7 @@ let test_keyword_fail_parsing =
   parsing_fail_test
     ~testable:Alcotest.string
     "keyword 'kw'"
-    (Signature.Parser.keyword "kw")
+    (Parsers.keyword "kw")
     "notkw"
 ;;
 
