@@ -187,6 +187,31 @@ module Ctype = struct
       let ps = string_of_t p in
       String.cat ps "*"
   ;;
+
+  let rec explain requires_prefix = function
+    | Atom a ->
+      let prefix =
+        if requires_prefix
+        then (
+          match String.get a 0 with
+          | 'a' | 'e' | 'i' | 'o' | 'u' -> "an "
+          | _ -> "a ")
+        else ""
+      in
+      String.cat prefix a
+    | Pointer t ->
+      Printf.sprintf
+        "%spointer to %s"
+        (if requires_prefix then "a " else "")
+        (explain true t)
+    | Const t ->
+      Printf.sprintf
+        "%simmutable %s"
+        (if requires_prefix then "an " else "")
+        (explain false t)
+  ;;
+
+  let explain t = explain true t
 end
 
 type t =
@@ -232,3 +257,10 @@ let parser =
 ;;
 
 let parse str : t option = Parser.parse_full parser str
+
+let explain t =
+  Printf.sprintf
+    "a function returning %s from (%s)"
+    (Ctype.explain t.return)
+    (String.concat ", " (List.map Ctype.explain t.params))
+;;
