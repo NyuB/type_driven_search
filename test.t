@@ -10,3 +10,5 @@
   a function returning an int from (a pointer to a pointer to an immutable char, an int)
   $ type_driven_search explain "void (int*const***const)"
   a function returning a void from (an immutable pointer to a pointer to a pointer to an immutable pointer to an int)
+  $ type_driven_search explain "void (unsigned int*)"
+  a function returning a void from (a pointer to an unsigned int)

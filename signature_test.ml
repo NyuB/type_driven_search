@@ -119,6 +119,10 @@ let test_signature_const =
   signature_parsing_test "void (char const*)" @@ make_signature "void" [ "char const*" ]
 ;;
 
+let test_signature_unsigned =
+  signature_parsing_test "void (unsigned int)" @@ make_signature "void" [ "unsigned int" ]
+;;
+
 let test (name, exec) = Alcotest.test_case name `Quick exec
 let suite (name, tests) = name, List.map test tests
 let suites l = List.map suite l
@@ -136,6 +140,7 @@ let () =
            ; test_signature_pointer
            ; test_condense_pointer
            ; test_signature_const
+           ; test_signature_unsigned
            ] )
        ]
 ;;

@@ -61,6 +61,17 @@ module Parser = struct
       parsers
   ;;
 
+  let longest_of (parsers : 'a t list) : 'a t =
+    fun input ->
+    List.fold_left
+      (fun acc parser ->
+         match acc, parser input with
+         | None, v | v, None -> v
+         | (Some ((_, i), _) as vi), (Some ((_, j), _) as vj) -> if i >= j then vi else vj)
+      None
+      parsers
+  ;;
+
   let option (t : 'a t) : 'a option t =
     fun input ->
     match t input with
@@ -167,16 +178,29 @@ module Ctype = struct
       qualifiers
   ;;
 
+  let unsigned =
+    let open Parser in
+    keyword "unsigned "
+    |. whitespaces
+    |* first_of (List.map keyword [ "char"; "int"; "long"; "short" ])
+    |/ fun (u, t) -> String.cat u t
+  ;;
+
   let parser : t Parser.t =
     let open Parser in
     discard whitespaces
-    ||> identifier
+    ||> longest_of [ identifier; unsigned ]
     |. whitespaces
     |* zero_or_more qualifier_parser
     |/ fun (id, stars) -> qualify (Atom id) stars
   ;;
 
-  let parse param = Parser.parse_full parser param |> Option.get (* FIXME return option *)
+  let parse param =
+    Parser.parse_full parser param
+    |> function
+    | Some t -> t
+    | None -> failwith (String.cat "Unable to parse type: " param)
+  ;;
 
   let rec string_of_t = function
     | Atom s -> s
