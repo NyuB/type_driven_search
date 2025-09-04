@@ -9,6 +9,14 @@
             "command": "make",
             "problemMatcher": [],
             "group": "build"
+        },
+                {
+            "label": "make test",
+            "type": "shell",
+            "command": "make",
+            "args": ["test"],
+            "problemMatcher": [],
+            "group": "test"
         }
     ]
 }
