@@ -60,6 +60,28 @@ module Parser = struct
     previous |> flat_map (fun v -> success v t)
   ;;
 
+  let take parser previous = previous |> flat_map (fun _ -> parser)
+  let combine (b : 'b t) (a : 'a t) = a |> flat_map (fun va -> map (fun vb -> va, vb) b)
+
+  let combine2 (c : 'c t) (ab : ('a * 'b) t) =
+    ab |> flat_map (fun (va, vb) -> map (fun vc -> va, vb, vc) c)
+  ;;
+
+  let combine3 (d : 'd t) (abc : ('a * 'b * 'c) t) =
+    abc |> flat_map (fun (va, vb, vc) -> map (fun vd -> va, vb, vc, vd) d)
+  ;;
+
+  (* Syntax *)
+  include struct
+    let ( ||> ) previous parser = take parser previous
+    let ( |. ) previous parser = skip parser previous
+    let ( |/ ) parser f = map f parser
+    let ( |>> ) parser f = flat_map f parser
+    let ( |* ) previous parser = combine parser previous
+    let ( |** ) previous parser = combine2 parser previous
+    let ( |*** ) previous parser = combine3 parser previous
+  end
+
   let list ~prefix ~suffix ~sep (t : 'a t) : 'a list t =
     let rec aux acc input =
       match t input with
@@ -84,16 +106,6 @@ module Parser = struct
   ;;
 
   let whitespaces = take_while (( = ) ' ')
-  let combine (b : 'b t) (a : 'a t) = a |> flat_map (fun va -> map (fun vb -> va, vb) b)
-
-  let combine2 (c : 'c t) (ab : ('a * 'b) t) =
-    ab |> flat_map (fun (va, vb) -> map (fun vc -> va, vb, vc) c)
-  ;;
-
-  let combine3 (d : 'd t) (abc : ('a * 'b * 'c) t) =
-    abc |> flat_map (fun (va, vb, vc) -> map (fun vd -> va, vb, vc, vd) d)
-  ;;
-
   let parse t input = t input
 
   let parse_full t input =
@@ -131,10 +143,10 @@ module Ctype = struct
   let parser : t Parser.t =
     let open Parser in
     discard whitespaces
-    |> flat_map (fun () -> identifier)
-    |> skip whitespaces
-    |> combine @@ zero_or_more star_parser
-    |> map (fun (id, stars) -> pointer_n id (List.length stars))
+    ||> identifier
+    |. whitespaces
+    |* zero_or_more star_parser
+    |/ fun (id, stars) -> pointer_n id (List.length stars)
   ;;
 
   let parse param = Parser.parse_full parser param |> Option.get (* FIXME return option *)
@@ -180,15 +192,13 @@ let remove_empty l = List.filter (fun s -> String.length s > 0) l
 
 let parser =
   let open Parser in
-  let sep = discard whitespaces |> flat_map (fun () -> keyword ",") |> skip whitespaces in
-  let prefix = discard whitespaces |> flat_map (fun () -> keyword "(") |> skip whitespaces
-  and suffix =
-    discard whitespaces |> flat_map (fun () -> keyword ")") |> skip whitespaces
-  in
+  let sep = discard whitespaces |>> (fun () -> keyword ",") |. whitespaces in
+  let prefix = discard whitespaces |>> (fun () -> keyword "(") |. whitespaces
+  and suffix = discard whitespaces |>> (fun () -> keyword ")") |. whitespaces in
   discard whitespaces
-  |> flat_map (fun () -> Ctype.parser)
-  |> combine @@ list ~prefix ~suffix ~sep Ctype.parser
-  |> map (fun (return, params) -> { return; params })
+  ||> Ctype.parser
+  |* list ~prefix ~suffix ~sep Ctype.parser
+  |/ fun (return, params) -> { return; params }
 ;;
 
 let parse str : t option = Parser.parse_full parser str
