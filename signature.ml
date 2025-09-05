@@ -21,11 +21,7 @@ module Ctype = struct
 
   let atom a = Atom a
   let pointer a = Pointer a
-
-  let pointer_n a n =
-    let rec aux n t = if n <= 0 then t else aux (n - 1) (Pointer t) in
-    aux n (Atom a)
-  ;;
+  let const a = Const a
 
   let qualifier_parser =
     let open Parsers in
@@ -163,18 +159,6 @@ include struct
 end
 
 let canonical { return; params } = { return; params = List.sort Ctype.compare params }
-
-let trim_last_paren params =
-  let params = String.trim params in
-  let removed =
-    if String.ends_with ~suffix:")" params
-    then String.sub params 0 (String.length params - 1)
-    else params
-  in
-  String.trim removed
-;;
-
-let remove_empty l = List.filter (fun s -> String.length s > 0) l
 
 let parser =
   let open Parsers in
