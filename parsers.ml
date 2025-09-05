@@ -104,15 +104,20 @@ include struct
 end
 
 let list ~prefix ~suffix ~sep (t : 'a t) : 'a list t =
+  let final input value =
+    match suffix input with
+    | None -> None
+    | Some (input, _) -> Some (input, value)
+  in
   let rec aux acc input =
     match t input with
-    | None -> Some (input, List.rev acc)
+    | None -> final input (List.rev acc)
     | Some (input, value) ->
       (match sep input with
-       | None -> aux (value :: acc) input
+       | None -> final input (List.rev (value :: acc))
        | Some (input, _) -> aux (value :: acc) input)
   in
-  discard prefix |> flat_map (fun () -> aux []) |> skip suffix
+  discard prefix |> flat_map (fun () -> aux [])
 ;;
 
 let take_while pred : string t =

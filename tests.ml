@@ -116,6 +116,16 @@ let test_signature_unsigned =
   signature_parsing_test "void (unsigned int)" @@ make_signature "void" [ "unsigned int" ]
 ;;
 
+let test_only_east_const =
+  ( "~const t~ => t const"
+  , fun () ->
+      Alcotest.check
+        (Alcotest.option signature_testable)
+        "West const not recognized"
+        None
+        (Signature.parse "int(const char*)") )
+;;
+
 let cfunction_testable : Index.CFunction.t Alcotest.testable =
   Alcotest.testable
     (fun fmt f -> Format.pp_print_string fmt @@ Index.CFunction.string_of_t f)
@@ -261,6 +271,7 @@ let () =
            ; test_condense_pointer
            ; test_signature_const
            ; test_signature_unsigned
+           ; test_only_east_const
            ] )
        ; ( "Indexing (in-memory)"
          , modular_index_test_suite
