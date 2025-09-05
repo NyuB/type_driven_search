@@ -14,10 +14,15 @@
  (modules parsers)
  (libraries))
 
+(library
+ (name index)
+ (modules index)
+ (libraries signature))
+
 (tests
  (names tests)
  (modules tests)
- (libraries alcotest signature parsers))
+ (libraries alcotest index parsers signature))
 
 (cram
  (deps %{bin:type_driven_search}))

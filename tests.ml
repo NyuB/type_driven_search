@@ -118,6 +118,92 @@ let test_signature_unsigned =
   signature_parsing_test "void (unsigned int)" @@ make_signature "void" [ "unsigned int" ]
 ;;
 
+let cfunction_testable : Index.CFunction.t Alcotest.testable =
+  Alcotest.testable
+    (fun fmt f -> Format.pp_print_string fmt @@ Index.CFunction.string_of_t f)
+    Index.CFunction.equal
+;;
+
+let modular_index_test
+      (type i)
+      (module I : Index.S with type t = i)
+      ~(index_description : string)
+      create_index
+      test
+  =
+  test (module I : Index.S with type t = i) ~index_description (create_index ())
+;;
+
+let modular_index_test_suite
+      (type i)
+      (module I : Index.S with type t = i)
+      ~(index_description : string)
+      create_index
+      tests
+  =
+  List.map
+    (modular_index_test
+       (module I : Index.S with type t = i)
+       ~index_description
+       create_index)
+    tests
+;;
+
+let test_index_store_get_single
+      (type i)
+      (module I : Index.S with type t = i)
+      ~(index_description : string)
+      (index : i)
+  =
+  ( Printf.sprintf
+      "Storing a function then querying it's signature yields back the stored function \
+       (%s)"
+      index_description
+  , fun () ->
+      let cf =
+        Index.CFunction.
+          { name = "main"; signature = make_signature "int" [ "int"; "char**" ] }
+      in
+      I.store index [ cf ];
+      let back = I.get index cf.signature in
+      Alcotest.check
+        (Alcotest.list cfunction_testable)
+        "Expected to get back the single function stored"
+        [ cf ]
+        back )
+;;
+
+let test_index_empty_get
+      (type i)
+      (module I : Index.S with type t = i)
+      ~(index_description : string)
+      (index : i)
+  =
+  ( Printf.sprintf "Querying an empty index yields no result (%s)" index_description
+  , fun () ->
+      let back = I.get index @@ make_signature "void" [] in
+      Alcotest.check (Alcotest.list cfunction_testable) "Expected no result" [] back )
+;;
+
+let test_index_no_match
+      (type i)
+      (module I : Index.S with type t = i)
+      ~(index_description : string)
+      (index : i)
+  =
+  ( Printf.sprintf
+      "Storing a function then querying another signature yields no result (%s)"
+      index_description
+  , fun () ->
+      let cf =
+        Index.CFunction.
+          { name = "main"; signature = make_signature "int" [ "int"; "char**" ] }
+      in
+      I.store index [ cf ];
+      let back = I.get index @@ make_signature "void" [] in
+      Alcotest.check (Alcotest.list cfunction_testable) "Expected no result" [] back )
+;;
+
 let test (name, exec) = Alcotest.test_case name `Quick exec
 let suite (name, tests) = name, List.map test tests
 let suites l = List.map suite l
@@ -137,5 +223,11 @@ let () =
            ; test_signature_const
            ; test_signature_unsigned
            ] )
+       ; ( "Indexing (in-memory)"
+         , modular_index_test_suite
+             (module Index.InMemory)
+             ~index_description:"In-memory"
+             (fun () -> Index.InMemory.init ())
+             [ test_index_store_get_single; test_index_empty_get; test_index_no_match ] )
        ]
 ;;

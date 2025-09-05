@@ -109,11 +109,6 @@ let string_of_t t =
 
 let equal a b = Ctype.equal a.return b.return && List.equal Ctype.equal a.params b.params
 
-type cfunction =
-  { name : string
-  ; signature : t
-  }
-
 let trim_last_paren params =
   let params = String.trim params in
   let removed =
