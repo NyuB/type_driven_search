@@ -4,9 +4,22 @@ module CFunction = struct
     ; signature : Signature.t
     }
 
-  let equal { name = na; signature = sa } { name = nb; signature = sb } =
-    String.equal na nb && Signature.equal sa sb
-  ;;
+  let name t = t.name
+  let signature t = t.signature
+
+  (* Comparisons *)
+  include struct
+    let compare (a : t) (b : t) =
+      Compare.compare_by_each
+        [ Compare.compare_by Signature.compare signature
+        ; Compare.compare_by String.compare name
+        ]
+        a
+        b
+    ;;
+
+    let equal a b = Compare.equality compare a b
+  end
 
   let string_of_t { name; signature } =
     Printf.sprintf
@@ -15,8 +28,6 @@ module CFunction = struct
       (Signature.Ctype.string_of_t signature.return)
       (String.concat ", " (List.map Signature.Ctype.string_of_t signature.params))
   ;;
-
-  let signature { name = _; signature } = signature
 end
 
 module type S = sig

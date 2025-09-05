@@ -16,12 +16,7 @@ module Ctype = struct
       | _, Const _ -> -1
     ;;
 
-    let rec equal a b =
-      match a, b with
-      | Atom sa, Atom sb -> String.equal sa sb
-      | Pointer a, Pointer b | Const a, Const b -> equal a b
-      | _ -> false
-    ;;
+    let equal a b = Compare.equality a b
   end
 
   let atom a = Atom a
@@ -123,34 +118,18 @@ let string_of_t t =
     (String.concat "," (List.map Ctype.string_of_t t.params))
 ;;
 
-module Comparisons : sig
-  val compare : t -> t -> int
-  val equal : t -> t -> bool
-end = struct
-  let compare_by (comparison : 't -> 't -> int) how_to_get_comparable a b =
-    comparison (how_to_get_comparable a) (how_to_get_comparable b)
-  ;;
-
-  let compare_by_each comparisons (a : 't) (b : 't) =
-    List.fold_left
-      (fun compared comparison -> if compared != 0 then compared else comparison a b)
-      0
-      comparisons
-  ;;
-
+include struct
   let compare (a : t) (b : t) =
-    compare_by_each
-      [ compare_by Ctype.compare return; compare_by (List.compare Ctype.compare) params ]
+    Compare.compare_by_each
+      [ Compare.compare_by Ctype.compare return
+      ; Compare.compare_by (List.compare Ctype.compare) params
+      ]
       a
       b
   ;;
 
-  let equal a b =
-    Ctype.equal a.return b.return && List.equal Ctype.equal a.params b.params
-  ;;
+  let equal a b = Compare.equality compare a b
 end
-
-include Comparisons
 
 let canonical { return; params } = { return; params = List.sort Ctype.compare params }
 
