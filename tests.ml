@@ -126,6 +126,16 @@ let test_only_east_const =
         (Signature.parse "int(const char*)") )
 ;;
 
+let test_const_is_not_a_type =
+  ( "const is not a valid type"
+  , fun () ->
+      Alcotest.check
+        (Alcotest.option signature_testable)
+        "'const' should be rejected as a type"
+        None
+        (Signature.parse "const()") )
+;;
+
 let cfunction_testable : Index.CFunction.t Alcotest.testable =
   Alcotest.testable
     (fun fmt f -> Format.pp_print_string fmt @@ Index.CFunction.string_of_t f)
@@ -272,6 +282,7 @@ let () =
            ; test_signature_const
            ; test_signature_unsigned
            ; test_only_east_const
+           ; test_const_is_not_a_type
            ] )
        ; ( "Indexing (in-memory)"
          , modular_index_test_suite

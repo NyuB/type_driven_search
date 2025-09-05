@@ -51,10 +51,41 @@ module Ctype = struct
     |/ fun (u, t) -> String.cat u t
   ;;
 
+  module StringSet = Set.Make (String)
+
+  let reserved_keywords =
+    StringSet.of_list
+      [ "auto"
+      ; "class"
+      ; "const"
+      ; "do"
+      ; "decltype"
+      ; "else"
+      ; "final"
+      ; "for"
+      ; "if"
+      ; "override"
+      ; "struct"
+      ; "template"
+      ; "typedef"
+      ; "typename"
+      ; "unsigned"
+      ; "virtual"
+      ; "while"
+      ]
+  ;;
+
+  let reject_reserved_keywords (value : string) : string Parsers.t =
+    if StringSet.mem value reserved_keywords
+    then Fun.const None
+    else fun input -> Some (input, value)
+  ;;
+
   let parser : t Parsers.t =
     let open Parsers in
     discard whitespaces
     ||> longest_of [ identifier; unsigned ]
+    |>> reject_reserved_keywords
     |. whitespaces
     |* zero_or_more qualifier_parser
     |/ fun (id, stars) -> qualify (Atom id) stars
