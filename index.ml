@@ -24,8 +24,8 @@ module CFunction = struct
   let string_of_t { name; signature } =
     Printf.sprintf
       "%s %s(%s)"
-      name
       (Signature.Ctype.string_of_t signature.return)
+      name
       (String.concat ", " (List.map Signature.Ctype.string_of_t signature.params))
   ;;
 end

@@ -1,9 +1,12 @@
   $ type_driven_search
   Usage: type_driven_search <command>
-  Where command is one of { help, explain }
+  Where command is one of { help; explain; index }
   help: print this help message
   explain <signature>: explains the C function <signature>
+  index { create; get; store}: store and retrieve functions by signature
   [1]
+
+Explain  
   $ type_driven_search explain "oops("
   Invalid C/C++ signature
   $ type_driven_search explain "int (char const**, int)"
@@ -12,3 +15,14 @@
   a function returning a void from (an immutable pointer to a pointer to a pointer to an immutable pointer to an int)
   $ type_driven_search explain "void (unsigned int*)"
   a function returning a void from (a pointer to an unsigned int)
+
+Index  
+  $ type_driven_search index create index.txt
+  $ cat index.txt
+  $ type_driven_search index store index.txt "main" "int (int,char**)"
+  $ type_driven_search index store index.txt "add" "int (int,int)"
+  $ type_driven_search index store index.txt "mul" "int (int,int)"
+  $ type_driven_search index get index.txt "int (int,int)"
+  int add(int, int)
+  int mul(int, int)
+
