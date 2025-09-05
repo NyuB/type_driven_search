@@ -3,7 +3,11 @@
   Where command is one of { help; explain; index }
   help: print this help message
   explain <signature>: explains the C function <signature>
-  index { create; get; store}: store and retrieve functions by signature
+  index { create; get; store; serve }: store and retrieve functions by signature
+  |-- create <index>: initialize an empty index into the <index> file
+  |-- store <index> <name> <signature>: stores the function <name> with the given <signature> into <index>
+  |-- get <index> <query>: list all functions stored within <index> matching <query>
+  |-- serve <index>: enter an interactive mode waiting for queries on the standard input
   [1]
 
 Explain  

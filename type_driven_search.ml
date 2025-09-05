@@ -3,7 +3,17 @@ let usage_and_exit code =
   print_endline "Where command is one of { help; explain; index }";
   print_endline "help: print this help message";
   print_endline "explain <signature>: explains the C function <signature>";
-  print_endline "index { create; get; store}: store and retrieve functions by signature";
+  print_endline
+    "index { create; get; store; serve }: store and retrieve functions by signature";
+  print_endline "|-- create <index>: initialize an empty index into the <index> file";
+  print_endline
+    "|-- store <index> <name> <signature>: stores the function <name> with the given \
+     <signature> into <index>";
+  print_endline
+    "|-- get <index> <query>: list all functions stored within <index> matching <query>";
+  print_endline
+    "|-- serve <index>: enter an interactive mode waiting for queries on the standard \
+     input";
   exit code
 ;;
 
@@ -14,6 +24,14 @@ let explain args =
     match Signature.parse args.(0) with
     | Some signature -> print_endline @@ Signature.explain signature
     | None -> print_endline "Invalid C/C++ signature")
+;;
+
+let index_get index signature =
+  match Signature.parse signature with
+  | None -> print_endline "Invalid signature"
+  | Some signature ->
+    let fs = Index.FileBased.get index signature in
+    List.iter (fun f -> print_endline @@ Index.CFunction.string_of_t f) fs
 ;;
 
 let index args =
@@ -31,8 +49,20 @@ let index args =
       ]
   | "get" ->
     let index = Index.FileBased.init Index.{ file = args.(1); mode = Keep } in
-    let fs = Index.FileBased.get index (Signature.parse args.(2) |> Option.get) in
-    List.iter (fun f -> print_endline @@ Index.CFunction.string_of_t f) fs
+    index_get index args.(2)
+  | "serve" ->
+    let index = Index.FileBased.init Index.{ file = args.(1); mode = Keep } in
+    while true do
+      Out_channel.output_string stdout "? ";
+      Out_channel.flush stdout;
+      try
+        let line = input_line stdin in
+        index_get index line
+      with
+      | End_of_file ->
+        print_endline "";
+        exit 0
+    done
   | _ -> failwith "Invalid command"
 ;;
 
