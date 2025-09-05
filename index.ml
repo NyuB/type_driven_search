@@ -36,6 +36,10 @@ module InMemory : S with type config = unit = struct
   let store t list = t := List.append !t list
 
   let get t s : CFunction.t list =
-    List.filter (Fun.compose (Signature.equal s) CFunction.signature) !t
+    List.filter
+      (Fun.compose
+         (Signature.equal (Signature.canonical s))
+         (Fun.compose Signature.canonical CFunction.signature))
+      !t
   ;;
 end

@@ -84,11 +84,9 @@ let signature_parsing_test input expected =
   title, exec
 ;;
 
-let make_signature return params =
+let make_signature ret ps =
   Signature.
-    { return = Signature.Ctype.parse return
-    ; params = List.map Signature.Ctype.parse params
-    }
+    { return = Signature.Ctype.parse ret; params = List.map Signature.Ctype.parse ps }
 ;;
 
 let test_signature_void = signature_parsing_test "void ()" @@ make_signature "void" []
@@ -204,6 +202,39 @@ let test_index_no_match
       Alcotest.check (Alcotest.list cfunction_testable) "Expected no result" [] back )
 ;;
 
+let test_index_sig_order_insignificant
+      (type i)
+      (module I : Index.S with type t = i)
+      ~(index_description : string)
+      (index : i)
+  =
+  ( Printf.sprintf "Search ignores parameters order (%s)" index_description
+  , fun () ->
+      let f_abc =
+        Index.CFunction.
+          [ { name = "f1"; signature = make_signature "int" [ "a"; "b"; "c" ] }
+          ; { name = "f2"; signature = make_signature "int" [ "a"; "c"; "b" ] }
+          ; { name = "f3"; signature = make_signature "int" [ "b"; "a"; "c" ] }
+          ; { name = "f4"; signature = make_signature "int" [ "b"; "c"; "a" ] }
+          ; { name = "f5"; signature = make_signature "int" [ "c"; "a"; "b" ] }
+          ; { name = "f6"; signature = make_signature "int" [ "c"; "b"; "a" ] }
+          ]
+      and f_no_match =
+        Index.CFunction.
+          [ { name = "x1"; signature = make_signature "void" [ "a"; "b"; "c" ] }
+          ; { name = "x2"; signature = make_signature "int" [ "a"; "b"; "d" ] }
+          ; { name = "x3"; signature = make_signature "int" [] }
+          ]
+      in
+      I.store index (f_abc @ f_no_match);
+      let result = I.get index @@ make_signature "int" [ "a"; "b"; "c" ] in
+      Alcotest.check
+        (Alcotest.list cfunction_testable)
+        "Expected all functions with queried parameter list regarless of parameters order"
+        f_abc
+        result )
+;;
+
 let test (name, exec) = Alcotest.test_case name `Quick exec
 let suite (name, tests) = name, List.map test tests
 let suites l = List.map suite l
@@ -228,6 +259,10 @@ let () =
              (module Index.InMemory)
              ~index_description:"In-memory"
              (fun () -> Index.InMemory.init ())
-             [ test_index_store_get_single; test_index_empty_get; test_index_no_match ] )
+             [ test_index_store_get_single
+             ; test_index_empty_get
+             ; test_index_no_match
+             ; test_index_sig_order_insignificant
+             ] )
        ]
 ;;
