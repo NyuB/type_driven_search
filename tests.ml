@@ -235,6 +235,14 @@ let test_index_sig_order_insignificant
         result )
 ;;
 
+let tests_index =
+  [ test_index_store_get_single
+  ; test_index_empty_get
+  ; test_index_no_match
+  ; test_index_sig_order_insignificant
+  ]
+;;
+
 let test (name, exec) = Alcotest.test_case name `Quick exec
 let suite (name, tests) = name, List.map test tests
 let suites l = List.map suite l
@@ -259,10 +267,12 @@ let () =
              (module Index.InMemory)
              ~index_description:"In-memory"
              (fun () -> Index.InMemory.init ())
-             [ test_index_store_get_single
-             ; test_index_empty_get
-             ; test_index_no_match
-             ; test_index_sig_order_insignificant
-             ] )
+             tests_index )
+       ; ( "Indexing (file-based)"
+         , modular_index_test_suite
+             (module Index.FileBased)
+             ~index_description:"File-Based"
+             (fun () -> Index.FileBased.init { file = "tmp.txt"; mode = Truncate })
+             tests_index )
        ]
 ;;
