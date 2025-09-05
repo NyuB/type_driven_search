@@ -4,6 +4,12 @@
  (modules type_driven_search)
  (libraries index signature))
 
+(executable
+ (public_name benchmark)
+ (name benchmark)
+ (modules benchmark)
+ (libraries index signature))
+
 (library
  (name signature)
  (modules signature)
