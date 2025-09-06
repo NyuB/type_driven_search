@@ -105,8 +105,7 @@ module FunctionEntry = struct
 
   let write oc ({ name; signature } : CFunction.t) =
     let sigstr = Printf.sprintf "%s:%s" name (Signature.string_of_t signature) in
-    Out_channel.output_string oc (fitting_entry_size sigstr);
-    Out_channel.flush oc
+    Out_channel.output_string oc (fitting_entry_size sigstr)
   ;;
 
   let read ic =
