@@ -71,6 +71,26 @@ type config_open_file =
   ; mode : config_open_mode
   }
 
+module FunctionRepr = struct
+  let parse line : CFunction.t =
+    let split = String.split_on_char ':' line in
+    let name = List.hd split
+    and sigstr =
+      List.nth_opt split 1 |> or_failwith (Printf.sprintf "Invalid line '%s'" line)
+    in
+    let signature =
+      sigstr
+      |> Signature.parse
+      |> or_failwith (Printf.sprintf "Invalid signature: '%s'" sigstr)
+    in
+    { name; signature }
+  ;;
+
+  let format (f : CFunction.t) =
+    Printf.sprintf "%s:%s" f.name (Signature.string_of_t f.signature)
+  ;;
+end
+
 module FunctionEntry = struct
   (* Fixed-size, fseekable entry *)
   let entry_size = 150
@@ -89,23 +109,9 @@ module FunctionEntry = struct
     Out_channel.flush oc
   ;;
 
-  let parse line : CFunction.t =
-    let split = String.split_on_char ':' line in
-    let name = List.hd split
-    and sigstr =
-      List.nth_opt split 1 |> or_failwith (Printf.sprintf "Invalid line '%s'" line)
-    in
-    let signature =
-      sigstr
-      |> Signature.parse
-      |> or_failwith (Printf.sprintf "Invalid signature: '%s'" sigstr)
-    in
-    { name; signature }
-  ;;
-
   let read ic =
     really_input_string ic entry_size
-    |> fun line -> parse @@ String.sub line 0 (entry_size - 1)
+    |> fun line -> FunctionRepr.parse @@ String.sub line 0 (entry_size - 1)
   ;;
 end
 
@@ -139,7 +145,8 @@ module FileBased : S with type config = config_open_file = struct
     with_file_w t (fun oc ->
       List.iter
         (fun (f : CFunction.t) ->
-           Printf.fprintf oc "%s:%s\n" f.name (Signature.string_of_t f.signature))
+           Out_channel.output_string oc @@ FunctionRepr.format f;
+           Out_channel.output_char oc '\n')
         list)
   ;;
 
@@ -150,7 +157,7 @@ module FileBased : S with type config = config_open_file = struct
         match In_channel.input_line ic with
         | None -> List.rev acc
         | Some line ->
-          let f = FunctionEntry.parse line in
+          let f = FunctionRepr.parse line in
           if Signature.equal (Signature.canonical f.signature) signature
           then aux (f :: acc)
           else aux acc
@@ -336,7 +343,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
         match In_channel.input_line ic with
         | None -> List.rev acc
         | Some line ->
-          let line_function = FunctionEntry.parse line in
+          let line_function = FunctionRepr.parse line in
           let compare_line_to_query =
             Signature.compare
               (Signature.canonical line_function.signature)
