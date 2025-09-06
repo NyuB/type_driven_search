@@ -40,8 +40,8 @@ let pick_n rand n l =
     random_access.(Random.State.int rand @@ Array.length random_access))
 ;;
 
-let bench (module I : Index.S with type config = Index.config_open_file) index_label =
-  print_endline (Printf.sprintf "[ %s ]" index_label);
+let bench (module I : Index.S with type config = Index.config_open_file) =
+  print_endline (Printf.sprintf "[ %s ]" I.id);
   let rand = Random.State.make [| 1; 2; 3; 5; 8 |] in
   let functions = pseudo_random_functions rand 10_000 in
   let index = I.init { file = "bench.idx"; mode = Create } in
@@ -58,6 +58,6 @@ let bench (module I : Index.S with type config = Index.config_open_file) index_l
 ;;
 
 let () =
-  bench (module Index.FileBased) "File-Based";
-  bench (module Index.FileBasedSorted) "File-Based-Sorted"
+  bench (module Index.FileBased);
+  bench (module Index.FileBasedSorted)
 ;;
