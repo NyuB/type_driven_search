@@ -135,7 +135,13 @@ module FileBased : S with type config = config_open_file = struct
     Fun.protect ~finally:(fun () -> close_in_noerr ic) (fun () -> fn ic)
   ;;
 
-  let store t list = with_file_w t (fun oc -> List.iter (FunctionEntry.write oc) list)
+  let store t list =
+    with_file_w t (fun oc ->
+      List.iter
+        (fun (f : CFunction.t) ->
+           Printf.fprintf oc "%s:%s\n" f.name (Signature.string_of_t f.signature))
+        list)
+  ;;
 
   let get t signature =
     let signature = Signature.canonical signature in
