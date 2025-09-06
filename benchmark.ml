@@ -62,7 +62,7 @@ let pad_left width str =
 ;;
 
 let () =
-  let headers = [| "Index \\ Op"; "Store"; "Get" |] in
+  let headers = [| "Index Type \\ Op(ms)"; "Store"; "Get" |] in
   let headers_suffix = Array.make (Array.length headers) "---" in
   let results = Dynarray.of_array [| headers; headers_suffix |] in
   Dynarray.add_last results @@ bench (module Index.FileBased);
