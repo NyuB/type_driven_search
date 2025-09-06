@@ -185,20 +185,19 @@ module FileBasedSorted : S with type config = config_open_file = struct
     Filename.open_temp_file ~temp_dir:"." ~mode:[ Open_binary; Open_append ] t ".swp"
   ;;
 
-  let insert_to_swap t temp_oc f =
-    Fun.protect ~finally:(fun () -> Out_channel.close_noerr temp_oc)
-    @@ fun () ->
-    with_file_r t
-    @@ fun ic ->
-    let header = Header.read ic in
+  let output_line oc line =
+    Out_channel.output_string oc line;
+    Out_channel.output_char oc '\n'
+  ;;
+
+  let insert ic temp_oc f =
     let rec aux already_written =
       match In_channel.input_line ic with
       | None -> if already_written then () else FunctionEntry.write temp_oc f
       | Some line ->
         if already_written
         then (
-          Out_channel.output_string temp_oc line;
-          Out_channel.output_char temp_oc '\n';
+          output_line temp_oc line;
           aux true)
         else (
           let function_at_this_line = FunctionEntry.read line in
@@ -209,17 +208,13 @@ module FileBasedSorted : S with type config = config_open_file = struct
             >= 0
           then (
             FunctionEntry.write temp_oc f;
-            Out_channel.output_string temp_oc line;
-            Out_channel.output_char temp_oc '\n';
+            output_line temp_oc line;
             aux true)
           else (
-            Out_channel.output_string temp_oc line;
-            Out_channel.output_char temp_oc '\n';
+            output_line temp_oc line;
             aux false))
     in
-    aux false;
-    Out_channel.flush temp_oc;
-    Header.{ count = header.count + 1 }
+    aux false
   ;;
 
   (** swap_back t temp_t copies temp_t into t then deletes it *)
@@ -246,7 +241,13 @@ module FileBasedSorted : S with type config = config_open_file = struct
 
   let store_one t f : unit =
     let temp_t, temp_oc = temp_file_for t in
-    let header = insert_to_swap t temp_oc f in
+    Fun.protect ~finally:(fun () -> Out_channel.close_noerr temp_oc)
+    @@ fun () ->
+    with_file_r t
+    @@ fun ic ->
+    let header = Header.read ic in
+    insert ic temp_oc f;
+    Out_channel.flush temp_oc;
     swap_back t temp_t header
   ;;
 
