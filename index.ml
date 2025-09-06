@@ -91,29 +91,6 @@ module FunctionRepr = struct
   ;;
 end
 
-module FixSizeFunctionEntry = struct
-  (* Fixed-size, fseekable entry *)
-  let entry_size = 150
-  let offset entry_index = Int64.mul (Int64.of_int entry_index) (Int64.of_int entry_size)
-
-  let fitting_entry_size s =
-    let l = String.length s in
-    if l > entry_size - 1 (* Account for the final \n *)
-    then failwith "Signature to long, complain to the developper"
-    else Printf.sprintf "%s%s\n" s (String.make (entry_size - l - 1) ' ')
-  ;;
-
-  let write oc ({ name; signature } : CFunction.t) =
-    let sigstr = Printf.sprintf "%s:%s" name (Signature.string_of_t signature) in
-    Out_channel.output_string oc (fitting_entry_size sigstr)
-  ;;
-
-  let read ic =
-    really_input_string ic entry_size
-    |> fun line -> FunctionRepr.parse @@ String.sub line 0 (entry_size - 1)
-  ;;
-end
-
 module FixSizeEntryReader = struct
   type t =
     { ic : In_channel.t
@@ -261,6 +238,21 @@ module FileBasedSorted : S with type config = config_open_file = struct
       file
   ;;
 
+  (* Fixed-size, fseekable entry *)
+  let entry_size = 150
+
+  let fitting_entry_size s =
+    let l = String.length s in
+    if l > entry_size - 1 (* Account for the final \n *)
+    then failwith "Signature to long, complain to the developper"
+    else Printf.sprintf "%s%s\n" s (String.make (entry_size - l - 1) ' ')
+  ;;
+
+  let output_cfunction oc ({ name; signature } : CFunction.t) =
+    let sigstr = Printf.sprintf "%s:%s" name (Signature.string_of_t signature) in
+    Out_channel.output_string oc (fitting_entry_size sigstr)
+  ;;
+
   let with_file_r f fn =
     let ic = open_in_gen [ Open_binary; Open_creat; Open_nonblock ] 0o666 f in
     Fun.protect ~finally:(fun () -> close_in_noerr ic) (fun () -> fn ic)
@@ -322,7 +314,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
       find_insertion_point reader header.count (Signature.canonical f.signature)
     in
     FixSizeEntryReader.pipe_all_before reader insertion_pos temp_oc;
-    FixSizeFunctionEntry.write temp_oc f;
+    output_cfunction temp_oc f;
     FixSizeEntryReader.pipe_all_after reader insertion_pos temp_oc
   ;;
 
@@ -347,7 +339,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
     with_file_r t
     @@ fun ic ->
     let header = Header.read ic in
-    insert (FixSizeEntryReader.init ic FixSizeFunctionEntry.entry_size) temp_oc header f;
+    insert (FixSizeEntryReader.init ic entry_size) temp_oc header f;
     Out_channel.flush temp_oc;
     swap_back t temp_t { count = header.count + 1 }
   ;;
@@ -409,7 +401,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
     let query_signature = Signature.canonical signature in
     with_file_r t (fun ic ->
       let Header.{ count } = Header.read ic in
-      let reader = FixSizeEntryReader.init ic FixSizeFunctionEntry.entry_size in
+      let reader = FixSizeEntryReader.init ic entry_size in
       match find_signature_position reader query_signature count with
       | None ->
         print_endline "Found no position";
