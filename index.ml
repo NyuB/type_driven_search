@@ -91,7 +91,7 @@ module FunctionRepr = struct
   ;;
 end
 
-module FunctionEntry = struct
+module FixSizeFunctionEntry = struct
   (* Fixed-size, fseekable entry *)
   let entry_size = 150
   let offset entry_index = Int64.mul (Int64.of_int entry_index) (Int64.of_int entry_size)
@@ -111,6 +111,63 @@ module FunctionEntry = struct
   let read ic =
     really_input_string ic entry_size
     |> fun line -> FunctionRepr.parse @@ String.sub line 0 (entry_size - 1)
+  ;;
+end
+
+module FixSizeEntryReader = struct
+  type t =
+    { ic : In_channel.t
+    ; start_pos : int64
+    ; entry_size : int
+    }
+
+  let init ic entry_size = { ic; entry_size; start_pos = In_channel.pos ic }
+
+  let offset t entry_index =
+    Int64.add t.start_pos
+    @@ Int64.mul (Int64.of_int entry_index) (Int64.of_int t.entry_size)
+  ;;
+
+  (** handy when you want to trim a newline from an entry ...
+    NB: fix entry size should eliminate the need for newlines, they are kept only to ease debugging index files
+    *)
+  let really_input_entry_minus_one t i =
+    In_channel.seek t.ic (offset t i);
+    really_input_string t.ic (t.entry_size - 1)
+  ;;
+
+  let pipe_all_before t i oc =
+    In_channel.seek t.ic t.start_pos;
+    let buff_size = 2048 in
+    let buff = Bytes.make buff_size '\x00' in
+    let rec loop to_write =
+      let writeable = Int64.min (Int64.of_int buff_size) to_write |> Int64.to_int in
+      match In_channel.input t.ic buff 0 writeable with
+      | 0 -> ()
+      | n ->
+        Out_channel.output oc buff 0 n;
+        loop (Int64.sub to_write (Int64.of_int n))
+    in
+    let to_write = Int64.sub (offset t i) t.start_pos in
+    loop to_write
+  ;;
+
+  let pipe_all ic oc =
+    let buff_size = 2048 in
+    let buff = Bytes.make buff_size '\x00' in
+    let rec loop () =
+      match In_channel.input ic buff 0 buff_size with
+      | 0 -> ()
+      | n ->
+        Out_channel.output oc buff 0 n;
+        loop ()
+    in
+    loop ()
+  ;;
+
+  let pipe_all_after t i oc =
+    In_channel.seek t.ic (offset t i);
+    pipe_all t.ic oc
   ;;
 end
 
@@ -213,53 +270,20 @@ module FileBasedSorted : S with type config = config_open_file = struct
     Filename.open_temp_file ~temp_dir:"." ~mode:[ Open_binary; Open_append ] t ".swp"
   ;;
 
-  let pipe_all ic oc =
-    let buff_size = 2048 in
-    let buff = Bytes.make buff_size '\x00' in
-    let rec loop () =
-      match In_channel.input ic buff 0 buff_size with
-      | 0 -> ()
-      | n ->
-        Out_channel.output oc buff 0 n;
-        loop ()
-    in
-    loop ()
-  ;;
-
-  let pipe_all_before start_seek_pos ic limit oc =
-    In_channel.seek ic start_seek_pos;
-    let buff_size = 2048 in
-    let buff = Bytes.make buff_size '\x00' in
-    let rec loop to_write () =
-      let writeable = Int64.min (Int64.of_int buff_size) to_write |> Int64.to_int in
-      match In_channel.input ic buff 0 writeable with
-      | 0 -> ()
-      | n ->
-        Out_channel.output oc buff 0 n;
-        loop (Int64.sub to_write (Int64.of_int n)) ()
-    in
-    loop (Int64.sub limit start_seek_pos) ()
-  ;;
-
-  let pipe_all_after ic limit oc =
-    In_channel.seek ic limit;
-    pipe_all ic oc
-  ;;
-
   let gte sa sb = Signature.compare sa sb >= 0
   let lte sa sb = Signature.compare sa sb <= 0
 
-  let find_insertion_point start_seek_pos ic count queried_signature =
+  let find_insertion_point reader count queried_signature =
     if count = 0
     then 0
     else (
       let high = count - 1 in
-      let () = In_channel.seek ic start_seek_pos in
-      let low_line = FunctionEntry.read ic in
-      let () =
-        In_channel.seek ic (Int64.add start_seek_pos (FunctionEntry.offset high))
+      let low_line =
+        FixSizeEntryReader.really_input_entry_minus_one reader 0 |> FunctionRepr.parse
       in
-      let high_line = FunctionEntry.read ic in
+      let high_line =
+        FixSizeEntryReader.really_input_entry_minus_one reader high |> FunctionRepr.parse
+      in
       if gte (Signature.canonical low_line.signature) queried_signature
       then 0
       else if lte (Signature.canonical high_line.signature) queried_signature
@@ -273,8 +297,10 @@ module FileBasedSorted : S with type config = config_open_file = struct
           then high
           else (
             let middle = low + ((high - low) / 2) in
-            In_channel.seek ic (Int64.add start_seek_pos (FunctionEntry.offset middle));
-            let mid_line = FunctionEntry.read ic in
+            let mid_line =
+              FixSizeEntryReader.really_input_entry_minus_one reader middle
+              |> FunctionRepr.parse
+            in
             let compare =
               Signature.compare (Signature.canonical mid_line.signature) queried_signature
             in
@@ -291,19 +317,13 @@ module FileBasedSorted : S with type config = config_open_file = struct
         loop 0 high))
   ;;
 
-  let insert ic temp_oc (header : Header.t) (f : CFunction.t) : unit =
-    let start_seek_pos = In_channel.pos ic in
+  let insert reader temp_oc (header : Header.t) (f : CFunction.t) : unit =
     let insertion_pos =
-      find_insertion_point
-        start_seek_pos
-        ic
-        header.count
-        (Signature.canonical f.signature)
+      find_insertion_point reader header.count (Signature.canonical f.signature)
     in
-    let offset = Int64.add start_seek_pos (FunctionEntry.offset insertion_pos) in
-    pipe_all_before start_seek_pos ic offset temp_oc;
-    FunctionEntry.write temp_oc f;
-    pipe_all_after ic offset temp_oc
+    FixSizeEntryReader.pipe_all_before reader insertion_pos temp_oc;
+    FixSizeFunctionEntry.write temp_oc f;
+    FixSizeEntryReader.pipe_all_after reader insertion_pos temp_oc
   ;;
 
   (** swap_back t temp_t copies temp_t into t then deletes it *)
@@ -314,7 +334,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
       Out_channel.with_open_bin t
       @@ fun oc ->
       Header.write header oc;
-      pipe_all ic oc;
+      FixSizeEntryReader.pipe_all ic oc;
       Out_channel.flush oc
     in
     Sys.remove temp_t
@@ -327,7 +347,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
     with_file_r t
     @@ fun ic ->
     let header = Header.read ic in
-    insert ic temp_oc header f;
+    insert (FixSizeEntryReader.init ic FixSizeFunctionEntry.entry_size) temp_oc header f;
     Out_channel.flush temp_oc;
     swap_back t temp_t { count = header.count + 1 }
   ;;
