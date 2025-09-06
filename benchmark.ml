@@ -43,7 +43,7 @@ let pick_n rand n l =
 let bench (module I : Index.S with type config = Index.config_open_file) index_label =
   print_endline (Printf.sprintf "[ %s ]" index_label);
   let rand = Random.State.make [| 1; 2; 3; 5; 8 |] in
-  let functions = pseudo_random_functions rand 100_000 in
+  let functions = pseudo_random_functions rand 10_000 in
   let index = I.init { file = "bench.idx"; mode = Truncate } in
   let _, store_time = _timed_execution @@ fun () -> I.store index functions in
   print_endline @@ Printf.sprintf "| Store: %f(ms)" store_time;
