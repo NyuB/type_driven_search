@@ -50,7 +50,7 @@ let bench (module I : Index.S with type config = Index.config_open_file) index_l
   let _, get_time =
     _timed_execution
     @@ fun () ->
-    pick_n rand 10 functions
+    pick_n rand 1000 functions
     |> List.map Index.CFunction.signature
     |> List.map (I.get index)
   in
