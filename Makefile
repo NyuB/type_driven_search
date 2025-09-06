@@ -14,6 +14,7 @@ install: fmt build test
 
 build:
 	dune build
+	dune build @doc
 
 # Format sources, formatting can be configured in .ocamlformat
 fmt:
