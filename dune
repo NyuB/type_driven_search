@@ -8,7 +8,7 @@
  (public_name benchmark)
  (name benchmark)
  (modules benchmark)
- (libraries index signature unix))
+ (libraries index signature testability unix))
 
 (library
  (name signature)
@@ -30,10 +30,15 @@
  (modules index)
  (libraries compare signature))
 
+(library
+ (name testability)
+ (modules testability)
+ (libraries index signature))
+
 (tests
  (names tests)
  (modules tests)
- (libraries alcotest index parsers signature))
+ (libraries alcotest index parsers signature testability))
 
 (cram
  (deps %{bin:type_driven_search}))

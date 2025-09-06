@@ -306,6 +306,35 @@ let test_index_interleaved_store (type i) (module I : Index.S with type t = i) (
         result )
 ;;
 
+let test_index_respects_oracle (type i) (module I : Index.S with type t = i) (index : i) =
+  ( Printf.sprintf "Matches the reference implementation (%s)" I.id
+  , fun () ->
+      if
+        (* Avoid redundant testing since this generates moult queries *)
+        String.equal I.id Index.InMemory.id
+      then ()
+      else (
+        let rand = Testability.reproducible_random () in
+        let functions = Testability.pseudo_random_functions rand 500 3 3 in
+        let mem_index = Index.InMemory.init () in
+        I.store index functions;
+        Index.InMemory.store mem_index functions;
+        let queries =
+          (* Pick queries among stored function to ensure there are matches *)
+          Testability.pick_n rand 1000 functions |> List.map Index.CFunction.signature
+        in
+        queries
+        |> List.iter (fun query ->
+          let mem_results =
+            Index.InMemory.get mem_index query |> List.sort Index.CFunction.compare
+          in
+          Alcotest.check
+            (Alcotest.list cfunction_testable)
+            "Actual result matches reference implementation result"
+            mem_results
+            (I.get index query |> List.sort Index.CFunction.compare))) )
+;;
+
 let tests_index =
   [ test_index_store_get_single
   ; test_index_empty_get
@@ -313,6 +342,7 @@ let tests_index =
   ; test_index_no_match
   ; test_index_sig_order_insignificant
   ; test_index_interleaved_store
+  ; test_index_respects_oracle
   ]
 ;;
 
