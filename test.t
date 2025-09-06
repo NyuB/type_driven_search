@@ -3,11 +3,12 @@
   Where command is one of { help; explain; index }
   help: print this help message
   explain <signature>: explains the C function <signature>
-  index { create; get; store; serve }: store and retrieve functions by signature
+  index [opts] { create; get; store; serve }: store and retrieve functions by signature
   |-- create <index>: initialize an empty index into the <index> file
   |-- store <index> <name> <signature>: stores the function <name> with the given <signature> into <index>
   |-- get <index> <query>: list all functions stored within <index> matching <query>
   |-- serve <index>: enter an interactive mode waiting for queries on the standard input
+  | --index=<index-id>: choose the indexing method where <index-id> is one of { FileBased (default); FileBasedSorted }
   [1]
 
 Explain  
@@ -23,10 +24,26 @@ Explain
 Index  
   $ type_driven_search index create index.txt
   $ cat index.txt
-  0
   $ type_driven_search index store index.txt "main" "int (int,char**)"
   $ type_driven_search index store index.txt "add" "int (int,int)"
   $ type_driven_search index store index.txt "mul" "int (int,int)"
-  $ type_driven_search index get index.txt "int (int,int)" | sort
+  $ type_driven_search index get index.txt "int (int,int)"
   int add(int, int)
   int mul(int, int)
+  $ rm index.txt
+
+  $ type_driven_search index --index="FileBasedSorted" create index.txt
+  $ cat index.txt
+  0
+  $ type_driven_search index --index="FileBasedSorted" store index.txt "main" "int (int,char**)"
+  $ type_driven_search index --index="FileBasedSorted" store index.txt "add" "int (int,int)"
+  $ type_driven_search index --index="FileBasedSorted" store index.txt "mul" "int (int,int)"
+  $ type_driven_search index --index="FileBasedSorted" get index.txt "int (int,int)" | sort
+  int add(int, int)
+  int mul(int, int)
+  $ rm index.txt
+
+  $ type_driven_search index --index="Oops" create index.txt
+  Invalid index type: 'Oops'
+  [2]
+  $ ls
