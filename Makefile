@@ -3,7 +3,7 @@
 # If INSTALL_ROOT is in your PATH, so will be the installed executable
 INSTALL_ROOT=~/bin
 
-default: fmt test
+default: fmt build test
 
 # Build the executable then copy it under INSTALL_ROOT
 install: fmt build test
