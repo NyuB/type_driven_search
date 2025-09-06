@@ -136,6 +136,20 @@ let test_const_is_not_a_type =
         (Signature.parse "const()") )
 ;;
 
+let test_identifier_can_contain_number =
+  signature_parsing_test "int32()" @@ make_signature "int32" []
+;;
+
+let test_identifier_cannot_start_with_number =
+  ( "32int is not a valid type"
+  , fun () ->
+      Alcotest.check
+        (Alcotest.option signature_testable)
+        "'32int' should be rejected as a type"
+        None
+        (Signature.parse "32int()") )
+;;
+
 let cfunction_testable : Index.CFunction.t Alcotest.testable =
   Alcotest.testable
     (fun fmt f -> Format.pp_print_string fmt @@ Index.CFunction.string_of_t f)
@@ -283,6 +297,8 @@ let () =
            ; test_signature_unsigned
            ; test_only_east_const
            ; test_const_is_not_a_type
+           ; test_identifier_can_contain_number
+           ; test_identifier_cannot_start_with_number
            ] )
        ; ( "Indexing (in-memory)"
          , modular_index_test_suite

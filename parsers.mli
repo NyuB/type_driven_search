@@ -4,7 +4,10 @@ type 'a t = input -> (input * 'a) option
 val map : ('a -> 'b) -> 'a t -> 'b t
 val flat_map : ('a -> 'b t) -> 'a t -> 'b t
 val keyword : string -> string t
+
+(** Accepts alphanumeric identifiers, starting with a letter or underscore and containing letters, numbers or underscores *)
 val identifier : string t
+
 val zero_or_more : 'a t -> 'a list t
 val first_of : 'a t list -> 'a t
 val longest_of : 'a t list -> 'a t

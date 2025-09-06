@@ -23,6 +23,11 @@ let keyword kw : string t =
 ;;
 
 let identifier_symbol = function
+  | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' -> true
+  | _ -> false
+;;
+
+let identifier_start_symbol = function
   | 'A' .. 'Z' | 'a' .. 'z' | '_' -> true
   | _ -> false
 ;;
@@ -30,17 +35,17 @@ let identifier_symbol = function
 let identifier : string t =
   fun (s, i) ->
   let l = String.length s in
-  let rec aux j =
-    if j >= l || (not @@ identifier_symbol (String.get s j))
-    then
-      if j == i
-      then None
-      else (
+  if i >= l || (not @@ identifier_start_symbol (String.get s i))
+  then None
+  else (
+    let rec aux j =
+      if j >= l || (not @@ identifier_symbol (String.get s j))
+      then (
         let res = String.sub s i (j - i) in
         Some ((s, j), res))
-    else aux (j + 1)
-  in
-  aux i
+      else aux (j + 1)
+    in
+    aux (i + 1))
 ;;
 
 let zero_or_more (t : 'a t) : 'a list t =
