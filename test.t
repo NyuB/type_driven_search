@@ -23,6 +23,7 @@ Explain
 Index  
   $ type_driven_search index create index.txt
   $ cat index.txt
+  0
   $ type_driven_search index store index.txt "main" "int (int,char**)"
   $ type_driven_search index store index.txt "add" "int (int,int)"
   $ type_driven_search index store index.txt "mul" "int (int,int)"

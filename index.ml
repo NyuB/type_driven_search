@@ -1,3 +1,8 @@
+let or_failwith message = function
+  | Some v -> v
+  | None -> failwith message
+;;
+
 module CFunction = struct
   type t =
     { name : string
@@ -65,21 +70,32 @@ type config_open_file =
   }
 
 module FunctionEntry = struct
+  (* Fixed-size, fseekable entry *)
+  let entry_size = 150
+
+  let fitting_entry_size s =
+    let l = String.length s in
+    if l > entry_size - 1 (* Account for the final \n *)
+    then failwith "Signature to long, complain to the developper"
+    else Printf.sprintf "%s%s\n" s (String.make (entry_size - l - 1) ' ')
+  ;;
+
   let write oc ({ name; signature } : CFunction.t) =
-    Printf.fprintf oc "%s:%s\n" name (Signature.string_of_t signature);
+    let sigstr = Printf.sprintf "%s:%s" name (Signature.string_of_t signature) in
+    Out_channel.output_string oc (fitting_entry_size sigstr);
     Out_channel.flush oc
   ;;
 
   let read line : CFunction.t =
     let split = String.split_on_char ':' line in
     let name = List.hd split
-    and sigstr = List.nth split 1 in
+    and sigstr =
+      List.nth_opt split 1 |> or_failwith (Printf.sprintf "Invalid line '%s'" line)
+    in
     let signature =
       sigstr
       |> Signature.parse
-      |> function
-      | Some s -> s
-      | None -> failwith (Printf.sprintf "Invalid signature: '%s'" sigstr)
+      |> or_failwith (Printf.sprintf "Invalid signature: '%s'" sigstr)
     in
     { name; signature }
   ;;
@@ -131,6 +147,22 @@ module FileBasedSorted : S with type config = config_open_file = struct
   type t = string
   type config = config_open_file
 
+  module Header = struct
+    type t = { count : int }
+
+    let write t oc =
+      Out_channel.output_string oc (string_of_int t.count);
+      Out_channel.output_char oc '\n'
+    ;;
+
+    let read ic =
+      let count = In_channel.input_line ic |> Option.get |> int_of_string in
+      { count }
+    ;;
+
+    let init = { count = 0 }
+  end
+
   let init ({ file; mode } : config) : t =
     let open_mode =
       match mode with
@@ -138,6 +170,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
       | Truncate -> [ Open_trunc; Open_creat; Open_wronly ]
     in
     let oc = open_out_gen open_mode 0o666 file in
+    Header.write Header.init oc;
     Out_channel.flush oc;
     Out_channel.close oc;
     file
@@ -157,6 +190,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
     @@ fun () ->
     with_file_r t
     @@ fun ic ->
+    let header = Header.read ic in
     let rec aux already_written =
       match In_channel.input_line ic with
       | None -> if already_written then () else FunctionEntry.write temp_oc f
@@ -184,16 +218,18 @@ module FileBasedSorted : S with type config = config_open_file = struct
             aux false))
     in
     aux false;
-    Out_channel.flush temp_oc
+    Out_channel.flush temp_oc;
+    Header.{ count = header.count + 1 }
   ;;
 
   (** swap_back t temp_t copies temp_t into t then deletes it *)
-  let swap_back t temp_t =
+  let swap_back t temp_t header =
     let () =
       In_channel.with_open_bin temp_t
       @@ fun ic ->
       Out_channel.with_open_bin t
       @@ fun oc ->
+      let () = Header.write header oc in
       let rec aux () =
         match In_channel.input_line ic with
         | Some line ->
@@ -210,8 +246,8 @@ module FileBasedSorted : S with type config = config_open_file = struct
 
   let store_one t f : unit =
     let temp_t, temp_oc = temp_file_for t in
-    insert_to_swap t temp_oc f;
-    swap_back t temp_t
+    let header = insert_to_swap t temp_oc f in
+    swap_back t temp_t header
   ;;
 
   let store t list = List.iter (store_one t) list
@@ -219,6 +255,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
   let get t signature =
     let query_signature = Signature.canonical signature in
     with_file_r t (fun ic ->
+      let _ = Header.read ic in
       let rec aux acc =
         match In_channel.input_line ic with
         | None -> List.rev acc

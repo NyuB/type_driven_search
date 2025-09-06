@@ -30,7 +30,7 @@ let index_get index signature =
   match Signature.parse signature with
   | None -> print_endline "Invalid signature"
   | Some signature ->
-    let fs = Index.FileBased.get index signature in
+    let fs = Index.FileBasedSorted.get index signature in
     List.iter (fun f -> print_endline @@ Index.CFunction.string_of_t f) fs
 ;;
 
@@ -38,20 +38,20 @@ let index args =
   let command = args.(0) in
   match command with
   | "create" ->
-    let _ = Index.FileBased.init Index.{ file = args.(1); mode = Truncate } in
+    let _ = Index.FileBasedSorted.init Index.{ file = args.(1); mode = Truncate } in
     ()
   | "store" ->
-    let index = Index.FileBased.init Index.{ file = args.(1); mode = Keep } in
-    Index.FileBased.store
+    let index = Index.FileBasedSorted.init Index.{ file = args.(1); mode = Keep } in
+    Index.FileBasedSorted.store
       index
       [ Index.CFunction.
           { name = args.(2); signature = Signature.parse args.(3) |> Option.get }
       ]
   | "get" ->
-    let index = Index.FileBased.init Index.{ file = args.(1); mode = Keep } in
+    let index = Index.FileBasedSorted.init Index.{ file = args.(1); mode = Keep } in
     index_get index args.(2)
   | "serve" ->
-    let index = Index.FileBased.init Index.{ file = args.(1); mode = Keep } in
+    let index = Index.FileBasedSorted.init Index.{ file = args.(1); mode = Keep } in
     while true do
       Out_channel.output_string stdout "? ";
       Out_channel.flush stdout;
