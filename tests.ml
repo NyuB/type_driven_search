@@ -272,11 +272,47 @@ let test_index_sig_order_insignificant
         result )
 ;;
 
+let test_index_interleaved_store
+      (type i)
+      (module I : Index.S with type t = i)
+      ~(index_description : string)
+      (index : i)
+  =
+  ( Printf.sprintf "Search after interleaved storage (%s)" index_description
+  , fun () ->
+      let queried_signature = make_signature "int" [] in
+      let f1 = Index.CFunction.{ name = "f1"; signature = queried_signature }
+      and f2 = Index.CFunction.{ name = "f2"; signature = queried_signature }
+      and f3 = Index.CFunction.{ name = "f3"; signature = queried_signature }
+      and f4 = Index.CFunction.{ name = "f4"; signature = queried_signature } in
+      let interleaved =
+        Index.CFunction.
+          [ f1
+          ; { name = "x1"; signature = make_signature "void" [] }
+          ; f2
+          ; { name = "x2"; signature = make_signature "int" [ "a"; "b"; "d" ] }
+          ; f3
+          ; { name = "x3"; signature = make_signature "int" [ "x" ] }
+          ; f4
+          ]
+      in
+      I.store index interleaved;
+      let result =
+        I.get index @@ make_signature "int" [] |> List.sort Index.CFunction.compare
+      in
+      Alcotest.check
+        (Alcotest.list cfunction_testable)
+        "Expected all and only functions with queried signature"
+        [ f1; f2; f3; f4 ]
+        result )
+;;
+
 let tests_index =
   [ test_index_store_get_single
   ; test_index_empty_get
   ; test_index_no_match
   ; test_index_sig_order_insignificant
+  ; test_index_interleaved_store
   ]
 ;;
 
