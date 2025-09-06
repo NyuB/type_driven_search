@@ -322,7 +322,7 @@ let suites l = List.map suite l
 let temp_index_file () = Filename.temp_file ~temp_dir:"." "temp" ".txt"
 
 let () =
-  Alcotest.run "Signature"
+  Alcotest.run "Type driven search"
   @@ suites
        [ ( "Parser combinators"
          , [ test_keyword_parsing; test_list_parsing; test_keyword_fail_parsing ] )

@@ -38,9 +38,35 @@ Index
   $ type_driven_search index --index="FileBasedSorted" store index.txt "main" "int (int,char**)"
   $ type_driven_search index --index="FileBasedSorted" store index.txt "add" "int (int,int)"
   $ type_driven_search index --index="FileBasedSorted" store index.txt "mul" "int (int,int)"
+  $ cat index.txt
+  3
+  main:int (int,char**)                                                                                                                                
+  add:int (int,int)                                                                                                                                    
+  mul:int (int,int)                                                                                                                                    
   $ type_driven_search index --index="FileBasedSorted" get index.txt "int (int,int)" | sort
   int add(int, int)
   int mul(int, int)
+  $ rm index.txt
+
+  $ type_driven_search index --index="FileBasedSorted" create index.txt 
+  $ type_driven_search index --index="FileBasedSorted" store index.txt "a" "int ()"
+  $ cat index.txt
+  1
+  a:int ()                                                                                                                                             
+  $ type_driven_search index --index="FileBasedSorted" store index.txt "x1" "void ()"
+  $ cat index.txt
+  2
+  a:int ()                                                                                                                                             
+  x1:void ()                                                                                                                                           
+  $ type_driven_search index --index="FileBasedSorted" store index.txt "b" "int ()"
+  $ cat index.txt
+  3
+  b:int ()                                                                                                                                             
+  a:int ()                                                                                                                                             
+  x1:void ()                                                                                                                                           
+  $ type_driven_search index --index="FileBasedSorted" get index.txt "int ()" | sort
+  int a()
+  int b()
   $ rm index.txt
 
   $ type_driven_search index --index="Oops" create index.txt

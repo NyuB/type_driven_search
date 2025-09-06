@@ -74,6 +74,7 @@ type config_open_file =
 module FunctionEntry = struct
   (* Fixed-size, fseekable entry *)
   let entry_size = 150
+  let offset entry_index = Int64.mul (Int64.of_int entry_index) (Int64.of_int entry_size)
 
   let fitting_entry_size s =
     let l = String.length s in
@@ -167,7 +168,12 @@ module FileBasedSorted : S with type config = config_open_file = struct
     ;;
 
     let read ic =
-      let count = In_channel.input_line ic |> Option.get |> int_of_string in
+      let count =
+        In_channel.input_line ic
+        |> or_failwith "Could not read header line"
+        |> int_of_string_opt
+        |> or_failwith "Invalid header line"
+      in
       { count }
     ;;
 
@@ -208,27 +214,84 @@ module FileBasedSorted : S with type config = config_open_file = struct
     loop ()
   ;;
 
-  let insert ic temp_oc (header : Header.t) f : unit =
-    let rec aux pos =
-      assert (pos <= header.count);
-      if pos = header.count
-      then FunctionEntry.write temp_oc f
-      else (
-        let f_at_line = FunctionEntry.read ic in
-        if
-          Signature.compare
-            (Signature.canonical f_at_line.signature)
-            (Signature.canonical f.signature)
-          >= 0
-        then (
-          FunctionEntry.write temp_oc f;
-          FunctionEntry.write temp_oc f_at_line;
-          pipe_all ic temp_oc)
-        else (
-          FunctionEntry.write temp_oc f_at_line;
-          aux (pos + 1)))
+  let pipe_all_before start_seek_pos ic limit oc =
+    In_channel.seek ic start_seek_pos;
+    let buff_size = 2048 in
+    let buff = Bytes.make buff_size '\x00' in
+    let rec loop to_write () =
+      let writeable = Int64.min (Int64.of_int buff_size) to_write |> Int64.to_int in
+      match In_channel.input ic buff 0 writeable with
+      | 0 -> ()
+      | n ->
+        Out_channel.output oc buff 0 n;
+        loop (Int64.sub to_write (Int64.of_int n)) ()
     in
-    aux 0
+    loop (Int64.sub limit start_seek_pos) ()
+  ;;
+
+  let pipe_all_after ic limit oc =
+    In_channel.seek ic limit;
+    pipe_all ic oc
+  ;;
+
+  let gte sa sb = Signature.compare sa sb >= 0
+  let lte sa sb = Signature.compare sa sb <= 0
+
+  let find_insertion_point start_seek_pos ic count queried_signature =
+    if count = 0
+    then 0
+    else (
+      let high = count - 1 in
+      let () = In_channel.seek ic start_seek_pos in
+      let low_line = FunctionEntry.read ic in
+      let () =
+        In_channel.seek ic (Int64.add start_seek_pos (FunctionEntry.offset high))
+      in
+      let high_line = FunctionEntry.read ic in
+      if gte (Signature.canonical low_line.signature) queried_signature
+      then 0
+      else if lte (Signature.canonical high_line.signature) queried_signature
+      then high + 1
+      else (
+        let rec loop low high =
+          assert (high >= low);
+          if low == high
+          then low
+          else if low = high - 1
+          then high
+          else (
+            let middle = low + ((high - low) / 2) in
+            In_channel.seek ic (Int64.add start_seek_pos (FunctionEntry.offset middle));
+            let mid_line = FunctionEntry.read ic in
+            let compare =
+              Signature.compare (Signature.canonical mid_line.signature) queried_signature
+            in
+            if compare = 0
+            then middle
+            else if compare > 0
+            then (
+              assert (middle != high);
+              loop low middle)
+            else (
+              assert (middle != low);
+              loop middle high))
+        in
+        loop 0 high))
+  ;;
+
+  let insert ic temp_oc (header : Header.t) (f : CFunction.t) : unit =
+    let start_seek_pos = In_channel.pos ic in
+    let insertion_pos =
+      find_insertion_point
+        start_seek_pos
+        ic
+        header.count
+        (Signature.canonical f.signature)
+    in
+    let offset = Int64.add start_seek_pos (FunctionEntry.offset insertion_pos) in
+    pipe_all_before start_seek_pos ic offset temp_oc;
+    FunctionEntry.write temp_oc f;
+    pipe_all_after ic offset temp_oc
   ;;
 
   (** swap_back t temp_t copies temp_t into t then deletes it *)
@@ -238,16 +301,8 @@ module FileBasedSorted : S with type config = config_open_file = struct
       @@ fun ic ->
       Out_channel.with_open_bin t
       @@ fun oc ->
-      let () = Header.write header oc in
-      let rec aux () =
-        match In_channel.input_line ic with
-        | Some line ->
-          Out_channel.output_string oc line;
-          Out_channel.output_char oc '\n';
-          aux ()
-        | None -> ()
-      in
-      aux ();
+      Header.write header oc;
+      pipe_all ic oc;
       Out_channel.flush oc
     in
     Sys.remove temp_t
