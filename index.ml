@@ -64,6 +64,27 @@ type config_open_file =
   ; mode : config_open_mode
   }
 
+module FunctionEntry = struct
+  let write oc ({ name; signature } : CFunction.t) =
+    Printf.fprintf oc "%s:%s\n" name (Signature.string_of_t signature);
+    Out_channel.flush oc
+  ;;
+
+  let read line : CFunction.t =
+    let split = String.split_on_char ':' line in
+    let name = List.hd split
+    and sigstr = List.nth split 1 in
+    let signature =
+      sigstr
+      |> Signature.parse
+      |> function
+      | Some s -> s
+      | None -> failwith (Printf.sprintf "Invalid signature: '%s'" sigstr)
+    in
+    { name; signature }
+  ;;
+end
+
 module FileBased : S with type config = config_open_file = struct
   type t = string
   type config = config_open_file
@@ -88,13 +109,7 @@ module FileBased : S with type config = config_open_file = struct
     Fun.protect ~finally:(fun () -> close_in_noerr ic) (fun () -> fn ic)
   ;;
 
-  let store t list =
-    with_file_w t (fun oc ->
-      List.iter
-        (fun CFunction.{ name; signature } ->
-           Printf.fprintf oc "%s:%s\n" name (Signature.string_of_t signature))
-        list)
-  ;;
+  let store t list = with_file_w t (fun oc -> List.iter (FunctionEntry.write oc) list)
 
   let get t signature =
     let signature = Signature.canonical signature in
@@ -103,11 +118,123 @@ module FileBased : S with type config = config_open_file = struct
         match In_channel.input_line ic with
         | None -> List.rev acc
         | Some line ->
-          let split = String.split_on_char ':' line in
-          let n = List.hd split
-          and s = List.nth split 1 |> Signature.parse |> Option.get in
-          if Signature.equal (Signature.canonical s) signature
-          then aux (CFunction.{ name = n; signature = s } :: acc)
+          let f = FunctionEntry.read line in
+          if Signature.equal (Signature.canonical f.signature) signature
+          then aux (f :: acc)
+          else aux acc
+      in
+      aux [])
+  ;;
+end
+
+module FileBasedSorted : S with type config = config_open_file = struct
+  type t = string
+  type config = config_open_file
+
+  let init ({ file; mode } : config) : t =
+    let open_mode =
+      match mode with
+      | Keep -> [ Open_creat; Open_text; Open_wronly ]
+      | Truncate -> [ Open_trunc; Open_creat; Open_wronly ]
+    in
+    let oc = open_out_gen open_mode 0o666 file in
+    Out_channel.flush oc;
+    Out_channel.close oc;
+    file
+  ;;
+
+  let with_file_r f fn =
+    let ic = open_in_gen [ Open_binary; Open_creat; Open_nonblock ] 0o666 f in
+    Fun.protect ~finally:(fun () -> close_in_noerr ic) (fun () -> fn ic)
+  ;;
+
+  let temp_file_for t =
+    Filename.open_temp_file ~temp_dir:"." ~mode:[ Open_binary; Open_append ] t ".swp"
+  ;;
+
+  let insert_to_swap t temp_oc f =
+    Fun.protect ~finally:(fun () -> Out_channel.close_noerr temp_oc)
+    @@ fun () ->
+    with_file_r t
+    @@ fun ic ->
+    let rec aux already_written =
+      match In_channel.input_line ic with
+      | None -> if already_written then () else FunctionEntry.write temp_oc f
+      | Some line ->
+        if already_written
+        then (
+          Out_channel.output_string temp_oc line;
+          Out_channel.output_char temp_oc '\n';
+          aux true)
+        else (
+          let function_at_this_line = FunctionEntry.read line in
+          if
+            Signature.compare
+              (Signature.canonical function_at_this_line.signature)
+              (Signature.canonical f.signature)
+            >= 0
+          then (
+            FunctionEntry.write temp_oc f;
+            Out_channel.output_string temp_oc line;
+            Out_channel.output_char temp_oc '\n';
+            aux true)
+          else (
+            Out_channel.output_string temp_oc line;
+            Out_channel.output_char temp_oc '\n';
+            aux false))
+    in
+    aux false;
+    Out_channel.flush temp_oc
+  ;;
+
+  (** swap_back t temp_t copies temp_t into t then deletes it *)
+  let swap_back t temp_t =
+    let () =
+      In_channel.with_open_bin temp_t
+      @@ fun ic ->
+      Out_channel.with_open_bin t
+      @@ fun oc ->
+      let rec aux () =
+        match In_channel.input_line ic with
+        | Some line ->
+          Out_channel.output_string oc line;
+          Out_channel.output_char oc '\n';
+          aux ()
+        | None -> ()
+      in
+      aux ();
+      Out_channel.flush oc
+    in
+    Sys.remove temp_t
+  ;;
+
+  let store_one t f : unit =
+    let temp_t, temp_oc = temp_file_for t in
+    insert_to_swap t temp_oc f;
+    swap_back t temp_t
+  ;;
+
+  let store t list = List.iter (store_one t) list
+
+  let get t signature =
+    let query_signature = Signature.canonical signature in
+    with_file_r t (fun ic ->
+      let rec aux acc =
+        match In_channel.input_line ic with
+        | None -> List.rev acc
+        | Some line ->
+          let line_function = FunctionEntry.read line in
+          let compare_line_to_query =
+            Signature.compare
+              (Signature.canonical line_function.signature)
+              query_signature
+          in
+          if compare_line_to_query = 0
+          then aux (line_function :: acc)
+          else if
+            (* Since the signature are sorted, no need to continue the iteration if we reached a > signature*)
+            compare_line_to_query > 0
+          then List.rev acc
           else aux acc
       in
       aux [])

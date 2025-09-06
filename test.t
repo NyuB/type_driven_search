@@ -26,7 +26,6 @@ Index
   $ type_driven_search index store index.txt "main" "int (int,char**)"
   $ type_driven_search index store index.txt "add" "int (int,int)"
   $ type_driven_search index store index.txt "mul" "int (int,int)"
-  $ type_driven_search index get index.txt "int (int,int)"
+  $ type_driven_search index get index.txt "int (int,int)" | sort
   int add(int, int)
   int mul(int, int)
-

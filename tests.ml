@@ -261,7 +261,10 @@ let test_index_sig_order_insignificant
           ]
       in
       I.store index (f_abc @ f_no_match);
-      let result = I.get index @@ make_signature "int" [ "a"; "b"; "c" ] in
+      let result =
+        I.get index @@ make_signature "int" [ "a"; "b"; "c" ]
+        |> List.sort Index.CFunction.compare
+      in
       Alcotest.check
         (Alcotest.list cfunction_testable)
         "Expected all functions with queried parameter list regarless of parameters order"
@@ -280,6 +283,7 @@ let tests_index =
 let test (name, exec) = Alcotest.test_case name `Quick exec
 let suite (name, tests) = name, List.map test tests
 let suites l = List.map suite l
+let temp_index_file () = Filename.temp_file ~temp_dir:"." "temp" ".txt"
 
 let () =
   Alcotest.run "Signature"
@@ -310,7 +314,15 @@ let () =
          , modular_index_test_suite
              (module Index.FileBased)
              ~index_description:"File-Based"
-             (fun () -> Index.FileBased.init { file = "tmp.txt"; mode = Truncate })
+             (fun () ->
+                Index.FileBased.init { file = temp_index_file (); mode = Truncate })
+             tests_index )
+       ; ( "Indexing (file-based-sorted)"
+         , modular_index_test_suite
+             (module Index.FileBasedSorted)
+             ~index_description:"File-Based-Sorted"
+             (fun () ->
+                Index.FileBasedSorted.init { file = temp_index_file (); mode = Truncate })
              tests_index )
        ]
 ;;
