@@ -41,12 +41,10 @@ let pick_n rand n l =
 ;;
 
 let bench (module I : Index.S with type config = Index.config_open_file) =
-  print_endline (Printf.sprintf "[ %s ]" I.id);
   let rand = Random.State.make [| 1; 2; 3; 5; 8 |] in
   let functions = pseudo_random_functions rand 10_000 in
   let index = I.init { file = "bench.idx"; mode = Create } in
   let _, store_time = _timed_execution @@ fun () -> I.store index functions in
-  print_endline @@ Printf.sprintf "| Store: %f(ms)" store_time;
   let _, get_time =
     _timed_execution
     @@ fun () ->
@@ -54,10 +52,37 @@ let bench (module I : Index.S with type config = Index.config_open_file) =
     |> List.map Index.CFunction.signature
     |> List.map (I.get index)
   in
-  print_endline @@ Printf.sprintf "| Get: %f(ms)" get_time
+  [| I.id; string_of_float store_time; string_of_float get_time |]
+;;
+
+let pad_left width str =
+  let padding_char = if String.starts_with ~prefix:"---" str then '-' else ' ' in
+  let padding = width - String.length str in
+  Printf.sprintf "%s%s" (String.make padding padding_char) str
 ;;
 
 let () =
-  bench (module Index.FileBased);
-  bench (module Index.FileBasedSorted)
+  let headers = [| "Index \\ Op"; "Store"; "Get" |] in
+  let headers_suffix = Array.make (Array.length headers) "---" in
+  let results = Dynarray.of_array [| headers; headers_suffix |] in
+  Dynarray.add_last results @@ bench (module Index.FileBased);
+  Dynarray.add_last results @@ bench (module Index.FileBasedSorted);
+  let cell_widths =
+    Array.mapi
+      (fun i _ ->
+         Dynarray.fold_left
+           (fun width row -> max width (String.length (Array.get row i)))
+           0
+           results)
+      (Dynarray.get results 0)
+  in
+  Dynarray.iter
+    (fun row ->
+       Array.iteri
+         (fun i width ->
+            print_string "|";
+            print_string (pad_left width row.(i)))
+         cell_widths;
+       print_endline "|")
+    results
 ;;
