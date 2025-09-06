@@ -39,6 +39,7 @@ module type S = sig
   type t
   type config
 
+  val id : string
   val init : config -> t
   val store : t -> CFunction.t list -> unit
   val get : t -> Signature.t -> CFunction.t list
@@ -48,6 +49,7 @@ module InMemory : S with type config = unit = struct
   type t = CFunction.t list ref
   type config = unit
 
+  let id = "InMemory"
   let init () = ref []
   let store t list = t := List.append !t list
 
@@ -105,6 +107,8 @@ module FileBased : S with type config = config_open_file = struct
   type t = string
   type config = config_open_file
 
+  let id = "FileBased"
+
   let init ({ file; mode } : config) : t =
     let open_mode =
       match mode with
@@ -146,6 +150,8 @@ end
 module FileBasedSorted : S with type config = config_open_file = struct
   type t = string
   type config = config_open_file
+
+  let id = "FileBasedSorted"
 
   module Header = struct
     type t = { count : int }

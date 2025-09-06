@@ -156,41 +156,26 @@ let cfunction_testable : Index.CFunction.t Alcotest.testable =
     Index.CFunction.equal
 ;;
 
-let modular_index_test
-      (type i)
-      (module I : Index.S with type t = i)
-      ~(index_description : string)
-      create_index
-      test
-  =
-  test (module I : Index.S with type t = i) ~index_description (create_index ())
+let modular_index_test (type i) (module I : Index.S with type t = i) create_index test =
+  test (module I : Index.S with type t = i) (create_index ())
 ;;
 
 let modular_index_test_suite
       (type i)
       (module I : Index.S with type t = i)
-      ~(index_description : string)
       create_index
       tests
   =
-  List.map
-    (modular_index_test
-       (module I : Index.S with type t = i)
-       ~index_description
-       create_index)
-    tests
+  ( Printf.sprintf "Indexing (%s)" I.id
+  , List.map (modular_index_test (module I : Index.S with type t = i) create_index) tests
+  )
 ;;
 
-let test_index_store_get_single
-      (type i)
-      (module I : Index.S with type t = i)
-      ~(index_description : string)
-      (index : i)
-  =
+let test_index_store_get_single (type i) (module I : Index.S with type t = i) (index : i) =
   ( Printf.sprintf
       "Storing a function then querying it's signature yields back the stored function \
        (%s)"
-      index_description
+      I.id
   , fun () ->
       let cf =
         Index.CFunction.
@@ -205,27 +190,17 @@ let test_index_store_get_single
         back )
 ;;
 
-let test_index_empty_get
-      (type i)
-      (module I : Index.S with type t = i)
-      ~(index_description : string)
-      (index : i)
-  =
-  ( Printf.sprintf "Querying an empty index yields no result (%s)" index_description
+let test_index_empty_get (type i) (module I : Index.S with type t = i) (index : i) =
+  ( Printf.sprintf "Querying an empty index yields no result (%s)" I.id
   , fun () ->
       let back = I.get index @@ make_signature "void" [] in
       Alcotest.check (Alcotest.list cfunction_testable) "Expected no result" [] back )
 ;;
 
-let test_index_no_match
-      (type i)
-      (module I : Index.S with type t = i)
-      ~(index_description : string)
-      (index : i)
-  =
+let test_index_no_match (type i) (module I : Index.S with type t = i) (index : i) =
   ( Printf.sprintf
       "Storing a function then querying another signature yields no result (%s)"
-      index_description
+      I.id
   , fun () ->
       let cf =
         Index.CFunction.
@@ -239,10 +214,9 @@ let test_index_no_match
 let test_index_sig_order_insignificant
       (type i)
       (module I : Index.S with type t = i)
-      ~(index_description : string)
       (index : i)
   =
-  ( Printf.sprintf "Search ignores parameters order (%s)" index_description
+  ( Printf.sprintf "Search ignores parameters order (%s)" I.id
   , fun () ->
       let f_abc =
         Index.CFunction.
@@ -272,13 +246,9 @@ let test_index_sig_order_insignificant
         result )
 ;;
 
-let test_index_interleaved_store
-      (type i)
-      (module I : Index.S with type t = i)
-      ~(index_description : string)
-      (index : i)
+let test_index_interleaved_store (type i) (module I : Index.S with type t = i) (index : i)
   =
-  ( Printf.sprintf "Search after interleaved storage (%s)" index_description
+  ( Printf.sprintf "Search after interleaved storage (%s)" I.id
   , fun () ->
       let queried_signature = make_signature "int" [] in
       let f1 = Index.CFunction.{ name = "f1"; signature = queried_signature }
@@ -340,25 +310,18 @@ let () =
            ; test_identifier_can_contain_number
            ; test_identifier_cannot_start_with_number
            ] )
-       ; ( "Indexing (in-memory)"
-         , modular_index_test_suite
-             (module Index.InMemory)
-             ~index_description:"In-memory"
-             (fun () -> Index.InMemory.init ())
-             tests_index )
-       ; ( "Indexing (file-based)"
-         , modular_index_test_suite
-             (module Index.FileBased)
-             ~index_description:"File-Based"
-             (fun () ->
-                Index.FileBased.init { file = temp_index_file (); mode = Truncate })
-             tests_index )
-       ; ( "Indexing (file-based-sorted)"
-         , modular_index_test_suite
-             (module Index.FileBasedSorted)
-             ~index_description:"File-Based-Sorted"
-             (fun () ->
-                Index.FileBasedSorted.init { file = temp_index_file (); mode = Truncate })
-             tests_index )
+       ; modular_index_test_suite
+           (module Index.InMemory)
+           (fun () -> Index.InMemory.init ())
+           tests_index
+       ; modular_index_test_suite
+           (module Index.FileBased)
+           (fun () -> Index.FileBased.init { file = temp_index_file (); mode = Truncate })
+           tests_index
+       ; modular_index_test_suite
+           (module Index.FileBasedSorted)
+           (fun () ->
+              Index.FileBasedSorted.init { file = temp_index_file (); mode = Truncate })
+           tests_index
        ]
 ;;
