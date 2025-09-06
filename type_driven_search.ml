@@ -19,7 +19,7 @@ let explain args =
   else (
     match Signature.parse args.(0) with
     | Some signature -> print_endline @@ Signature.explain signature
-    | None -> print_endline "Invalid C/C++ signature")
+    | None -> print_endline "not a valid C/C++ signature")
 ;;
 
 module IndexCommand = struct

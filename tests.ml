@@ -241,7 +241,8 @@ let test_index_sig_order_insignificant
       in
       Alcotest.check
         (Alcotest.list cfunction_testable)
-        "Expected all functions with queried parameter list regarless of parameters order"
+        "Expected all functions with queried parameter list regardless of parameters \
+         order"
         f_abc
         result )
 ;;

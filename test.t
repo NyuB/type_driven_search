@@ -13,7 +13,7 @@
 
 Explain  
   $ type_driven_search explain "oops("
-  Invalid C/C++ signature
+  not a valid C/C++ signature
   $ type_driven_search explain "int (char const**, int)"
   a function returning an int from (a pointer to a pointer to an immutable char, an int)
   $ type_driven_search explain "void (int*const***const)"
