@@ -190,6 +190,34 @@ let test_index_store_get_single (type i) (module I : Index.S with type t = i) (i
         back )
 ;;
 
+let test_index_store_three_get_two
+      (type i)
+      (module I : Index.S with type t = i)
+      (index : i)
+  =
+  ( Printf.sprintf
+      "Storing three functions, two having the same signature, retrieve both in one \
+       query (%s)"
+      I.id
+  , fun () ->
+      let shared_signature = make_signature "int" [ "int"; "int" ] in
+      let fadd = Index.CFunction.{ name = "add"; signature = shared_signature }
+      and fmul = Index.CFunction.{ name = "mul"; signature = shared_signature }
+      and fmain =
+        Index.CFunction.
+          { name = "main"; signature = make_signature "int" [ "int"; "char**" ] }
+      in
+      I.store index [ fmain ];
+      I.store index [ fadd ];
+      I.store index [ fmul ];
+      let back = I.get index shared_signature |> List.sort Index.CFunction.compare in
+      Alcotest.check
+        (Alcotest.list cfunction_testable)
+        "Expected to get back the two functions having he queried signature"
+        [ fadd; fmul ]
+        back )
+;;
+
 let test_index_empty_get (type i) (module I : Index.S with type t = i) (index : i) =
   ( Printf.sprintf "Querying an empty index yields no result (%s)" I.id
   , fun () ->
@@ -281,6 +309,7 @@ let test_index_interleaved_store (type i) (module I : Index.S with type t = i) (
 let tests_index =
   [ test_index_store_get_single
   ; test_index_empty_get
+  ; test_index_store_three_get_two
   ; test_index_no_match
   ; test_index_sig_order_insignificant
   ; test_index_interleaved_store
@@ -317,12 +346,12 @@ let () =
            tests_index
        ; modular_index_test_suite
            (module Index.FileBased)
-           (fun () -> Index.FileBased.init { file = temp_index_file (); mode = Truncate })
+           (fun () -> Index.FileBased.init { file = temp_index_file (); mode = Create })
            tests_index
        ; modular_index_test_suite
            (module Index.FileBasedSorted)
            (fun () ->
-              Index.FileBasedSorted.init { file = temp_index_file (); mode = Truncate })
+              Index.FileBasedSorted.init { file = temp_index_file (); mode = Create })
            tests_index
        ]
 ;;

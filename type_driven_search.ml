@@ -77,20 +77,20 @@ module IndexCommand = struct
     in
     match args.(0) with
     | "create" ->
-      let _ = I.init Index.{ file = args.(1); mode = Truncate } in
+      let _ = I.init Index.{ file = args.(1); mode = Create } in
       ()
     | "store" ->
-      let index = I.init Index.{ file = args.(1); mode = Keep } in
+      let index = I.init Index.{ file = args.(1); mode = Connect } in
       I.store
         index
         [ Index.CFunction.
             { name = args.(2); signature = Signature.parse args.(3) |> Option.get }
         ]
     | "get" ->
-      let index = I.init Index.{ file = args.(1); mode = Keep } in
+      let index = I.init Index.{ file = args.(1); mode = Connect } in
       get (module I) index args.(2)
     | "serve" ->
-      let index = I.init Index.{ file = args.(1); mode = Keep } in
+      let index = I.init Index.{ file = args.(1); mode = Connect } in
       while true do
         Out_channel.output_string stdout "? ";
         Out_channel.flush stdout;

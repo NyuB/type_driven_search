@@ -63,8 +63,8 @@ module InMemory : S with type config = unit = struct
 end
 
 type config_open_mode =
-  | Truncate
-  | Keep
+  | Create
+  | Connect
 
 type config_open_file =
   { file : string
@@ -88,7 +88,7 @@ module FunctionEntry = struct
     Out_channel.flush oc
   ;;
 
-  let read line : CFunction.t =
+  let parse line : CFunction.t =
     let split = String.split_on_char ':' line in
     let name = List.hd split
     and sigstr =
@@ -101,6 +101,11 @@ module FunctionEntry = struct
     in
     { name; signature }
   ;;
+
+  let read ic =
+    really_input_string ic entry_size
+    |> fun line -> parse @@ String.sub line 0 (entry_size - 1)
+  ;;
 end
 
 module FileBased : S with type config = config_open_file = struct
@@ -112,8 +117,8 @@ module FileBased : S with type config = config_open_file = struct
   let init ({ file; mode } : config) : t =
     let open_mode =
       match mode with
-      | Keep -> [ Open_creat; Open_text; Open_wronly ]
-      | Truncate -> [ Open_trunc; Open_creat; Open_wronly; Open_text ]
+      | Connect -> [ Open_creat; Open_text; Open_wronly ]
+      | Create -> [ Open_trunc; Open_creat; Open_wronly; Open_text ]
     in
     let _ = open_out_gen open_mode 0o666 file in
     file
@@ -138,7 +143,7 @@ module FileBased : S with type config = config_open_file = struct
         match In_channel.input_line ic with
         | None -> List.rev acc
         | Some line ->
-          let f = FunctionEntry.read line in
+          let f = FunctionEntry.parse line in
           if Signature.equal (Signature.canonical f.signature) signature
           then aux (f :: acc)
           else aux acc
@@ -170,16 +175,15 @@ module FileBasedSorted : S with type config = config_open_file = struct
   end
 
   let init ({ file; mode } : config) : t =
-    let open_mode =
-      match mode with
-      | Keep -> [ Open_creat; Open_text; Open_wronly ]
-      | Truncate -> [ Open_trunc; Open_creat; Open_wronly ]
-    in
-    let oc = open_out_gen open_mode 0o666 file in
-    Header.write Header.init oc;
-    Out_channel.flush oc;
-    Out_channel.close oc;
-    file
+    match mode with
+    | Connect -> file
+    | Create ->
+      let open_mode = [ Open_trunc; Open_creat; Open_wronly ] in
+      let oc = open_out_gen open_mode 0o666 file in
+      Header.write Header.init oc;
+      Out_channel.flush oc;
+      Out_channel.close oc;
+      file
   ;;
 
   let with_file_r f fn =
@@ -191,36 +195,40 @@ module FileBasedSorted : S with type config = config_open_file = struct
     Filename.open_temp_file ~temp_dir:"." ~mode:[ Open_binary; Open_append ] t ".swp"
   ;;
 
-  let output_line oc line =
-    Out_channel.output_string oc line;
-    Out_channel.output_char oc '\n'
+  let pipe_all ic oc =
+    let buff_size = 2048 in
+    let buff = Bytes.make buff_size '\x00' in
+    let rec loop () =
+      match In_channel.input ic buff 0 buff_size with
+      | 0 -> ()
+      | n ->
+        Out_channel.output oc buff 0 n;
+        loop ()
+    in
+    loop ()
   ;;
 
-  let insert ic temp_oc f =
-    let rec aux already_written =
-      match In_channel.input_line ic with
-      | None -> if already_written then () else FunctionEntry.write temp_oc f
-      | Some line ->
-        if already_written
+  let insert ic temp_oc (header : Header.t) f : unit =
+    let rec aux pos =
+      assert (pos <= header.count);
+      if pos = header.count
+      then FunctionEntry.write temp_oc f
+      else (
+        let f_at_line = FunctionEntry.read ic in
+        if
+          Signature.compare
+            (Signature.canonical f_at_line.signature)
+            (Signature.canonical f.signature)
+          >= 0
         then (
-          output_line temp_oc line;
-          aux true)
+          FunctionEntry.write temp_oc f;
+          FunctionEntry.write temp_oc f_at_line;
+          pipe_all ic temp_oc)
         else (
-          let function_at_this_line = FunctionEntry.read line in
-          if
-            Signature.compare
-              (Signature.canonical function_at_this_line.signature)
-              (Signature.canonical f.signature)
-            >= 0
-          then (
-            FunctionEntry.write temp_oc f;
-            output_line temp_oc line;
-            aux true)
-          else (
-            output_line temp_oc line;
-            aux false))
+          FunctionEntry.write temp_oc f_at_line;
+          aux (pos + 1)))
     in
-    aux false
+    aux 0
   ;;
 
   (** swap_back t temp_t copies temp_t into t then deletes it *)
@@ -252,9 +260,9 @@ module FileBasedSorted : S with type config = config_open_file = struct
     with_file_r t
     @@ fun ic ->
     let header = Header.read ic in
-    insert ic temp_oc f;
+    insert ic temp_oc header f;
     Out_channel.flush temp_oc;
-    swap_back t temp_t header
+    swap_back t temp_t { count = header.count + 1 }
   ;;
 
   let store t list = List.iter (store_one t) list
@@ -267,7 +275,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
         match In_channel.input_line ic with
         | None -> List.rev acc
         | Some line ->
-          let line_function = FunctionEntry.read line in
+          let line_function = FunctionEntry.parse line in
           let compare_line_to_query =
             Signature.compare
               (Signature.canonical line_function.signature)
