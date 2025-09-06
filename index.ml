@@ -354,28 +354,66 @@ module FileBasedSorted : S with type config = config_open_file = struct
 
   let store t list = List.iter (store_one t) list
 
+  let find_signature_position reader signature count =
+    let low = 0
+    and high = count in
+    let rec loop low high =
+      if low >= high
+      then None
+      else (
+        let middle = low + ((high - low) / 2) in
+        let mid_line =
+          FixSizeEntryReader.really_input_entry_minus_one reader middle
+          |> FunctionRepr.parse
+        in
+        let compare =
+          Signature.compare (Signature.canonical mid_line.signature) signature
+        in
+        if compare = 0
+        then Some middle
+        else if compare > 0
+        then loop low middle
+        else loop (middle + 1) high)
+    in
+    loop low high
+  ;;
+
+  let all_around_position ~position ~count reader signature =
+    let res = ref [] in
+    let i = ref position in
+    while !i >= 0 do
+      let line =
+        FixSizeEntryReader.really_input_entry_minus_one reader !i |> FunctionRepr.parse
+      in
+      if Signature.equal (Signature.canonical line.signature) signature
+      then (
+        res := line :: !res;
+        i := !i - 1)
+      else i := -1
+    done;
+    let j = ref (position + 1) in
+    while !j < count do
+      let line =
+        FixSizeEntryReader.really_input_entry_minus_one reader !j |> FunctionRepr.parse
+      in
+      if Signature.equal (Signature.canonical line.signature) signature
+      then (
+        res := line :: !res;
+        j := !j + 1)
+      else j := count
+    done;
+    !res
+  ;;
+
   let get t signature =
     let query_signature = Signature.canonical signature in
     with_file_r t (fun ic ->
-      let _ = Header.read ic in
-      let rec aux acc =
-        match In_channel.input_line ic with
-        | None -> List.rev acc
-        | Some line ->
-          let line_function = FunctionRepr.parse line in
-          let compare_line_to_query =
-            Signature.compare
-              (Signature.canonical line_function.signature)
-              query_signature
-          in
-          if compare_line_to_query = 0
-          then aux (line_function :: acc)
-          else if
-            (* Since the signature are sorted, no need to continue the iteration if we reached a > signature*)
-            compare_line_to_query > 0
-          then List.rev acc
-          else aux acc
-      in
-      aux [])
+      let Header.{ count } = Header.read ic in
+      let reader = FixSizeEntryReader.init ic FixSizeFunctionEntry.entry_size in
+      match find_signature_position reader query_signature count with
+      | None ->
+        print_endline "Found no position";
+        []
+      | Some position -> all_around_position reader ~position ~count query_signature)
   ;;
 end
