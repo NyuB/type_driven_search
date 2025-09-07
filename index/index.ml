@@ -247,7 +247,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
     FixSizeEntryReader.pipe_all_after reader insertion_pos temp_oc
   ;;
 
-  external mv : string -> string -> int = "mv"
+  external mv : string -> string -> unit = "mv"
 
   (** swap_back t temp_t copies temp_t into t then deletes it *)
   let swap_back t temp_t = ignore (mv temp_t t)

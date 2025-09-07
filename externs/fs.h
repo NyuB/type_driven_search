@@ -1,3 +1,3 @@
 #pragma once
 
-int mv(const char* source, const char* target);
+void mv(const char* source, const char* target);
