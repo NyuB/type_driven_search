@@ -182,3 +182,35 @@ let explain t =
     (Ctype.explain t.return)
     (String.concat ", " (List.map Ctype.explain t.params))
 ;;
+
+module CFunction = struct
+  type s = t
+
+  type t =
+    { name : string
+    ; signature : s
+    }
+
+  let name t = t.name
+  let signature t = t.signature
+
+  (* Comparisons *)
+  include struct
+    let compare (a : t) (b : t) =
+      Compare.compare_by_each
+        [ Compare.compare_by compare signature; Compare.compare_by String.compare name ]
+        a
+        b
+    ;;
+
+    let equal a b = Compare.equality compare a b
+  end
+
+  let string_of_t { name; signature } =
+    Printf.sprintf
+      "%s %s(%s)"
+      (Ctype.string_of_t signature.return)
+      name
+      (String.concat ", " (List.map Ctype.string_of_t signature.params))
+  ;;
+end

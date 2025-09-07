@@ -16,13 +16,13 @@ let pseudo_random_signature rand type_count max_params : Signature.t =
   { return; params }
 ;;
 
-let pseudo_random_function rand type_count max_params : Index.CFunction.t =
+let pseudo_random_function rand type_count max_params : Signature.CFunction.t =
   let name = pseudo_random_name rand "f_"
   and signature = pseudo_random_signature rand type_count max_params in
   { name; signature }
 ;;
 
-let pseudo_random_functions rand n type_count max_params : Index.CFunction.t list =
+let pseudo_random_functions rand n type_count max_params : Signature.CFunction.t list =
   List.init n (fun _ -> pseudo_random_function rand type_count max_params)
 ;;
 

@@ -3,61 +3,29 @@ let or_failwith message = function
   | None -> failwith message
 ;;
 
-module CFunction = struct
-  type t =
-    { name : string
-    ; signature : Signature.t
-    }
-
-  let name t = t.name
-  let signature t = t.signature
-
-  (* Comparisons *)
-  include struct
-    let compare (a : t) (b : t) =
-      Compare.compare_by_each
-        [ Compare.compare_by Signature.compare signature
-        ; Compare.compare_by String.compare name
-        ]
-        a
-        b
-    ;;
-
-    let equal a b = Compare.equality compare a b
-  end
-
-  let string_of_t { name; signature } =
-    Printf.sprintf
-      "%s %s(%s)"
-      (Signature.Ctype.string_of_t signature.return)
-      name
-      (String.concat ", " (List.map Signature.Ctype.string_of_t signature.params))
-  ;;
-end
-
 module type S = sig
   type t
   type config
 
   val id : string
   val init : config -> t
-  val store : t -> CFunction.t list -> unit
-  val get : t -> Signature.t -> CFunction.t list
+  val store : t -> Signature.CFunction.t list -> unit
+  val get : t -> Signature.t -> Signature.CFunction.t list
 end
 
 module InMemory : S with type config = unit = struct
-  type t = CFunction.t list ref
+  type t = Signature.CFunction.t list ref
   type config = unit
 
   let id = "InMemory"
   let init () = ref []
   let store t list = t := List.append !t list
 
-  let get t s : CFunction.t list =
+  let get t s : Signature.CFunction.t list =
     List.filter
       (Fun.compose
          (Signature.equal (Signature.canonical s))
-         (Fun.compose Signature.canonical CFunction.signature))
+         (Fun.compose Signature.canonical Signature.CFunction.signature))
       !t
   ;;
 end
@@ -72,7 +40,7 @@ type config_open_file =
   }
 
 module FunctionRepr = struct
-  let parse line : CFunction.t =
+  let parse line : Signature.CFunction.t =
     let split = String.split_on_char ':' line in
     let name = List.hd split
     and sigstr =
@@ -86,7 +54,7 @@ module FunctionRepr = struct
     { name; signature }
   ;;
 
-  let format (f : CFunction.t) =
+  let format (f : Signature.CFunction.t) =
     Printf.sprintf "%s:%s" f.name (Signature.string_of_t f.signature)
   ;;
 end
@@ -177,7 +145,7 @@ module FileBased : S with type config = config_open_file = struct
   let store t list =
     with_file_w t (fun oc ->
       List.iter
-        (fun (f : CFunction.t) ->
+        (fun (f : Signature.CFunction.t) ->
            Out_channel.output_string oc @@ FunctionRepr.format f;
            Out_channel.output_char oc '\n')
         list)
@@ -248,7 +216,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
     else Printf.sprintf "%s%s\n" s (String.make (entry_size - l - 1) ' ')
   ;;
 
-  let output_cfunction oc ({ name; signature } : CFunction.t) =
+  let output_cfunction oc ({ name; signature } : Signature.CFunction.t) =
     let sigstr = Printf.sprintf "%s:%s" name (Signature.string_of_t signature) in
     Out_channel.output_string oc (fitting_entry_size sigstr)
   ;;
@@ -309,7 +277,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
         loop 0 high))
   ;;
 
-  let insert reader temp_oc (header : Header.t) (f : CFunction.t) : unit =
+  let insert reader temp_oc (header : Header.t) (f : Signature.CFunction.t) : unit =
     let insertion_pos =
       find_insertion_point reader header.count (Signature.canonical f.signature)
     in

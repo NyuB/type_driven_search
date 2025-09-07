@@ -15,7 +15,7 @@ let bench (module I : Index.S with type config = Index.config_open_file) =
     _timed_execution
     @@ fun () ->
     Testability.pick_n rand 1000 functions
-    |> List.map Index.CFunction.signature
+    |> List.map Signature.CFunction.signature
     |> List.map (I.get index)
   in
   [| I.id; string_of_float store_time; string_of_float get_time |]

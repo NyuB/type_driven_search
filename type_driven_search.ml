@@ -84,7 +84,7 @@ module IndexCommand = struct
     | None -> print_endline "Invalid signature"
     | Some signature ->
       let fs = I.get index signature in
-      List.iter (fun f -> print_endline @@ Index.CFunction.string_of_t f) fs
+      List.iter (fun f -> print_endline @@ Signature.CFunction.string_of_t f) fs
   ;;
 
   let last l = List.nth_opt (List.rev l) 0
@@ -112,7 +112,7 @@ module IndexCommand = struct
           Signature.parse only_sig
           |> or_exit (Printf.sprintf "Invalid signature for %s: '%s'" name only_sig) 3
         in
-        let f : Index.CFunction.t = { name; signature } in
+        let f : Signature.CFunction.t = { name; signature } in
         f
     in
     In_channel.with_open_text from
@@ -139,7 +139,7 @@ module IndexCommand = struct
       let index = I.init Index.{ file = args.(1); mode = Connect } in
       I.store
         index
-        [ Index.CFunction.
+        [ Signature.CFunction.
             { name = args.(2); signature = Signature.parse args.(3) |> Option.get }
         ]
     | "get" ->

@@ -30,3 +30,19 @@ val canonical : t -> t
 val parser : t Parsers.t
 val parse : string -> t option
 val explain : t -> string
+
+module CFunction : sig
+  type s = t
+
+  (** A C/C++ function description *)
+  type t =
+    { name : string
+    ; signature : s
+    }
+
+  val name : t -> string
+  val signature : t -> s
+  val compare : t -> t -> int
+  val equal : t -> t -> bool
+  val string_of_t : t -> string
+end

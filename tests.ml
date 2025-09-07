@@ -155,10 +155,10 @@ let test_varargs_parameter =
   @@ make_signature "void" [ "char const*"; "..." ]
 ;;
 
-let cfunction_testable : Index.CFunction.t Alcotest.testable =
+let cfunction_testable : Signature.CFunction.t Alcotest.testable =
   Alcotest.testable
-    (fun fmt f -> Format.pp_print_string fmt @@ Index.CFunction.string_of_t f)
-    Index.CFunction.equal
+    (fun fmt f -> Format.pp_print_string fmt @@ Signature.CFunction.string_of_t f)
+    Signature.CFunction.equal
 ;;
 
 let modular_index_test (type i) (module I : Index.S with type t = i) create_index test =
@@ -183,7 +183,7 @@ let test_index_store_get_single (type i) (module I : Index.S with type t = i) (i
       I.id
   , fun () ->
       let cf =
-        Index.CFunction.
+        Signature.CFunction.
           { name = "main"; signature = make_signature "int" [ "int"; "char**" ] }
       in
       I.store index [ cf ];
@@ -206,16 +206,16 @@ let test_index_store_three_get_two
       I.id
   , fun () ->
       let shared_signature = make_signature "int" [ "int"; "int" ] in
-      let fadd = Index.CFunction.{ name = "add"; signature = shared_signature }
-      and fmul = Index.CFunction.{ name = "mul"; signature = shared_signature }
+      let fadd = Signature.CFunction.{ name = "add"; signature = shared_signature }
+      and fmul = Signature.CFunction.{ name = "mul"; signature = shared_signature }
       and fmain =
-        Index.CFunction.
+        Signature.CFunction.
           { name = "main"; signature = make_signature "int" [ "int"; "char**" ] }
       in
       I.store index [ fmain ];
       I.store index [ fadd ];
       I.store index [ fmul ];
-      let back = I.get index shared_signature |> List.sort Index.CFunction.compare in
+      let back = I.get index shared_signature |> List.sort Signature.CFunction.compare in
       Alcotest.check
         (Alcotest.list cfunction_testable)
         "Expected to get back the two functions having he queried signature"
@@ -236,7 +236,7 @@ let test_index_no_match (type i) (module I : Index.S with type t = i) (index : i
       I.id
   , fun () ->
       let cf =
-        Index.CFunction.
+        Signature.CFunction.
           { name = "main"; signature = make_signature "int" [ "int"; "char**" ] }
       in
       I.store index [ cf ];
@@ -252,7 +252,7 @@ let test_index_sig_order_insignificant
   ( Printf.sprintf "Search ignores parameters order (%s)" I.id
   , fun () ->
       let f_abc =
-        Index.CFunction.
+        Signature.CFunction.
           [ { name = "f1"; signature = make_signature "int" [ "a"; "b"; "c" ] }
           ; { name = "f2"; signature = make_signature "int" [ "a"; "c"; "b" ] }
           ; { name = "f3"; signature = make_signature "int" [ "b"; "a"; "c" ] }
@@ -261,7 +261,7 @@ let test_index_sig_order_insignificant
           ; { name = "f6"; signature = make_signature "int" [ "c"; "b"; "a" ] }
           ]
       and f_no_match =
-        Index.CFunction.
+        Signature.CFunction.
           [ { name = "x1"; signature = make_signature "void" [ "a"; "b"; "c" ] }
           ; { name = "x2"; signature = make_signature "int" [ "a"; "b"; "d" ] }
           ; { name = "x3"; signature = make_signature "int" [] }
@@ -270,7 +270,7 @@ let test_index_sig_order_insignificant
       I.store index (f_abc @ f_no_match);
       let result =
         I.get index @@ make_signature "int" [ "a"; "b"; "c" ]
-        |> List.sort Index.CFunction.compare
+        |> List.sort Signature.CFunction.compare
       in
       Alcotest.check
         (Alcotest.list cfunction_testable)
@@ -285,12 +285,12 @@ let test_index_interleaved_store (type i) (module I : Index.S with type t = i) (
   ( Printf.sprintf "Search after interleaved storage (%s)" I.id
   , fun () ->
       let queried_signature = make_signature "int" [] in
-      let f1 = Index.CFunction.{ name = "f1"; signature = queried_signature }
-      and f2 = Index.CFunction.{ name = "f2"; signature = queried_signature }
-      and f3 = Index.CFunction.{ name = "f3"; signature = queried_signature }
-      and f4 = Index.CFunction.{ name = "f4"; signature = queried_signature } in
+      let f1 = Signature.CFunction.{ name = "f1"; signature = queried_signature }
+      and f2 = Signature.CFunction.{ name = "f2"; signature = queried_signature }
+      and f3 = Signature.CFunction.{ name = "f3"; signature = queried_signature }
+      and f4 = Signature.CFunction.{ name = "f4"; signature = queried_signature } in
       let interleaved =
-        Index.CFunction.
+        Signature.CFunction.
           [ f1
           ; { name = "x1"; signature = make_signature "void" [] }
           ; f2
@@ -302,7 +302,7 @@ let test_index_interleaved_store (type i) (module I : Index.S with type t = i) (
       in
       I.store index interleaved;
       let result =
-        I.get index @@ make_signature "int" [] |> List.sort Index.CFunction.compare
+        I.get index @@ make_signature "int" [] |> List.sort Signature.CFunction.compare
       in
       Alcotest.check
         (Alcotest.list cfunction_testable)
@@ -326,18 +326,18 @@ let test_index_respects_oracle (type i) (module I : Index.S with type t = i) (in
         Index.InMemory.store mem_index functions;
         let queries =
           (* Pick queries among stored function to ensure there are matches *)
-          Testability.pick_n rand 1000 functions |> List.map Index.CFunction.signature
+          Testability.pick_n rand 1000 functions |> List.map Signature.CFunction.signature
         in
         queries
         |> List.iter (fun query ->
           let mem_results =
-            Index.InMemory.get mem_index query |> List.sort Index.CFunction.compare
+            Index.InMemory.get mem_index query |> List.sort Signature.CFunction.compare
           in
           Alcotest.check
             (Alcotest.list cfunction_testable)
             "Actual result matches reference implementation result"
             mem_results
-            (I.get index query |> List.sort Index.CFunction.compare))) )
+            (I.get index query |> List.sort Signature.CFunction.compare))) )
 ;;
 
 let tests_index =
