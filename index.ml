@@ -318,18 +318,10 @@ module FileBasedSorted : S with type config = config_open_file = struct
     FixSizeEntryReader.pipe_all_after reader insertion_pos temp_oc
   ;;
 
+  external mv : string -> string -> int = "mv"
+
   (** swap_back t temp_t copies temp_t into t then deletes it *)
-  let swap_back t temp_t =
-    let () =
-      In_channel.with_open_bin temp_t
-      @@ fun ic ->
-      Out_channel.with_open_bin t
-      @@ fun oc ->
-      FixSizeEntryReader.pipe_all ic oc;
-      Out_channel.flush oc
-    in
-    Sys.remove temp_t
-  ;;
+  let swap_back t temp_t = ignore (mv temp_t t)
 
   let store_one t f : unit =
     let temp_t, temp_oc = temp_file_for t in

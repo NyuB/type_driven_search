@@ -18,3 +18,9 @@
 |-------------------|-------------|-------------|
 |          FileBased| 4.8668384552|25460.2351189|
 |    FileBasedSorted|17615.7889366|119.297027588|
+
+## Store uses C FFI `rename` instead of manual channel-based copy
+|Index Type \ Op(ms)|             Store|          Get|
+|-------------------|------------------|-------------|
+|          FileBased|     7.37690925598|26256.6931248|
+|    FileBasedSorted| **9948.10795784**|92.6761627197|
