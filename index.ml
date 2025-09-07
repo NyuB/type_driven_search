@@ -319,13 +319,12 @@ module FileBasedSorted : S with type config = config_open_file = struct
   ;;
 
   (** swap_back t temp_t copies temp_t into t then deletes it *)
-  let swap_back t temp_t header =
+  let swap_back t temp_t =
     let () =
       In_channel.with_open_bin temp_t
       @@ fun ic ->
       Out_channel.with_open_bin t
       @@ fun oc ->
-      Header.write header oc;
       FixSizeEntryReader.pipe_all ic oc;
       Out_channel.flush oc
     in
@@ -339,9 +338,10 @@ module FileBasedSorted : S with type config = config_open_file = struct
     with_file_r t
     @@ fun ic ->
     let header = Header.read ic in
+    Header.write { count = header.count + 1 } temp_oc;
     insert (FixSizeEntryReader.init ic entry_size) temp_oc header f;
     Out_channel.flush temp_oc;
-    swap_back t temp_t { count = header.count + 1 }
+    swap_back t temp_t
   ;;
 
   let store t list = List.iter (store_one t) list
