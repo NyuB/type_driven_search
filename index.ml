@@ -73,12 +73,9 @@ module FixSizeEntryReader = struct
     @@ Int64.mul (Int64.of_int entry_index) (Int64.of_int t.entry_size)
   ;;
 
-  (** handy when you want to trim a newline from an entry ...
-    NB: fix entry size should eliminate the need for newlines, they are kept only to ease debugging index files
-    *)
-  let really_input_entry_minus_one t i =
+  let really_input_entry t i =
     In_channel.seek t.ic (offset t i);
-    really_input_string t.ic (t.entry_size - 1)
+    really_input_string t.ic t.entry_size
   ;;
 
   let pipe_all_before t i oc =
@@ -239,10 +236,10 @@ module FileBasedSorted : S with type config = config_open_file = struct
     else (
       let high = count - 1 in
       let low_line =
-        FixSizeEntryReader.really_input_entry_minus_one reader 0 |> FunctionRepr.parse
+        FixSizeEntryReader.really_input_entry reader 0 |> FunctionRepr.parse
       in
       let high_line =
-        FixSizeEntryReader.really_input_entry_minus_one reader high |> FunctionRepr.parse
+        FixSizeEntryReader.really_input_entry reader high |> FunctionRepr.parse
       in
       if gte (Signature.canonical low_line.signature) queried_signature
       then 0
@@ -258,8 +255,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
           else (
             let middle = low + ((high - low) / 2) in
             let mid_line =
-              FixSizeEntryReader.really_input_entry_minus_one reader middle
-              |> FunctionRepr.parse
+              FixSizeEntryReader.really_input_entry reader middle |> FunctionRepr.parse
             in
             let compare =
               Signature.compare (Signature.canonical mid_line.signature) queried_signature
@@ -315,8 +311,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
       else (
         let middle = low + ((high - low) / 2) in
         let mid_line =
-          FixSizeEntryReader.really_input_entry_minus_one reader middle
-          |> FunctionRepr.parse
+          FixSizeEntryReader.really_input_entry reader middle |> FunctionRepr.parse
         in
         let compare =
           Signature.compare (Signature.canonical mid_line.signature) signature
@@ -334,9 +329,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
     let res = ref [] in
     let i = ref position in
     while !i >= 0 do
-      let line =
-        FixSizeEntryReader.really_input_entry_minus_one reader !i |> FunctionRepr.parse
-      in
+      let line = FixSizeEntryReader.really_input_entry reader !i |> FunctionRepr.parse in
       if Signature.equal (Signature.canonical line.signature) signature
       then (
         res := line :: !res;
@@ -345,9 +338,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
     done;
     let j = ref (position + 1) in
     while !j < count do
-      let line =
-        FixSizeEntryReader.really_input_entry_minus_one reader !j |> FunctionRepr.parse
-      in
+      let line = FixSizeEntryReader.really_input_entry reader !j |> FunctionRepr.parse in
       if Signature.equal (Signature.canonical line.signature) signature
       then (
         res := line :: !res;
