@@ -51,7 +51,7 @@
  (deps ; Declare the dependencies of the custom rule, this is what triggers rebuilding on change 
   (source_tree externs) ; Declare each file of 'externs' as a dependency
   )
- (targets libfs.a libfs.so) ; Declare the outputs of the custom rule, we must ensure they are indeed produce
+ (targets libfs.a dllfs.so) ; Declare the outputs of the custom rule, we must ensure they are indeed produce
  (action
   (no-infer
    (progn ; A sequence of actions
@@ -60,7 +60,7 @@
      (run make libfs.a libfs.so) ; Raw command, the meat of the rule
      )
     (copy externs/libfs.a libfs.a) ; match above-declared targets
-    (copy externs/libfs.so libfs.so)))))
+    (copy externs/libfs.so dllfs.so)))))
 
 (cram
  (deps %{bin:type_driven_search}))
