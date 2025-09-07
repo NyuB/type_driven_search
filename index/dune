@@ -16,6 +16,11 @@
  (modules index_tests)
  (libraries alcotest index signature testability))
 
+(tests
+ (names binary_search_tests)
+ (modules binary_search_tests)
+ (libraries alcotest binary_search))
+
 (library
  (name binary_search_expect_tests)
  (modules binary_search_expect_tests)
