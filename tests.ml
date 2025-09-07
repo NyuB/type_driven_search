@@ -150,6 +150,11 @@ let test_identifier_cannot_start_with_number =
         (Signature.parse "32int()") )
 ;;
 
+let test_varargs_parameter =
+  signature_parsing_test "void(char const*, ...)"
+  @@ make_signature "void" [ "char const*"; "..." ]
+;;
+
 let cfunction_testable : Index.CFunction.t Alcotest.testable =
   Alcotest.testable
     (fun fmt f -> Format.pp_print_string fmt @@ Index.CFunction.string_of_t f)
@@ -369,6 +374,7 @@ let () =
            ; test_const_is_not_a_type
            ; test_identifier_can_contain_number
            ; test_identifier_cannot_start_with_number
+           ; test_varargs_parameter
            ] )
        ; modular_index_test_suite
            (module Index.InMemory)

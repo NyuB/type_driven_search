@@ -63,4 +63,4 @@
     (copy externs/libfs.so dllfs.so)))))
 
 (cram
- (deps %{bin:type_driven_search}))
+ (deps %{bin:type_driven_search} test_resources/curses.h))

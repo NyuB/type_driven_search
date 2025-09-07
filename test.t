@@ -69,7 +69,23 @@ Index
   int b()
   $ rm index.txt
 
+Ingest
+  $ type_driven_search index --index="FileBasedSorted" ingest --format=c index.txt test_resources/curses.h
+  $ type_driven_search index --index="FileBasedSorted" get index.txt "int (int, int, WINDOW*)" | sort
+  int mvderwin(WINDOW*, int, int)
+  int mvwdelch(WINDOW*, int, int)
+  int mvwdeleteln(WINDOW*, int, int)
+  int mvwgetch(WINDOW*, int, int)
+  int mvwin(WINDOW*, int, int)
+  int mvwinsertln(WINDOW*, int, int)
+  int touchline(WINDOW*, int, int)
+  int wmove(WINDOW*, int, int)
+  int wredrawln(WINDOW*, int, int)
+  int wresize(WINDOW*, int, int)
+  int wsetscrreg(WINDOW*, int, int)
+  $ rm index.txt
+
+
   $ type_driven_search index --index="Oops" create index.txt
   Invalid index type: 'Oops'
   [2]
-  $ ls

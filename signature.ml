@@ -3,17 +3,23 @@ module Ctype = struct
     | Atom of string
     | Const of t
     | Pointer of t
+    | Var_Args
 
   (* Comparisons *)
   include struct
     let rec compare a b : int =
       match a, b with
+      (* Handle all 'same tag' cases*)
       | Atom sa, Atom sb -> String.compare sa sb
       | Pointer a, Pointer b | Const a, Const b -> compare a b
+      | Var_Args, Var_Args -> 0
+      (* Handle all 'differing tag' cases, descending order from Atom *)
       | Atom _, _ -> 1
       | _, Atom _ -> -1
       | Const _, _ -> 1
       | _, Const _ -> -1
+      | Pointer _, _ -> 1
+      | _, Pointer _ -> -1
     ;;
 
     let equal a b = Compare.equality a b
@@ -80,11 +86,12 @@ module Ctype = struct
   let parser : t Parsers.t =
     let open Parsers in
     discard whitespaces
-    ||> longest_of [ identifier; unsigned ]
+    ||> longest_of [ identifier; unsigned; keyword "..." ]
     |>> reject_reserved_keywords
     |. whitespaces
     |* zero_or_more qualifier_parser
-    |/ fun (id, stars) -> qualify (Atom id) stars
+    |/ fun (id, stars) ->
+    qualify (if String.equal id "..." then Var_Args else Atom id) stars
   ;;
 
   let parse param =
@@ -102,9 +109,12 @@ module Ctype = struct
     | Pointer p ->
       let ps = string_of_t p in
       String.cat ps "*"
+    | Var_Args -> "..."
   ;;
 
-  let rec explain requires_prefix = function
+  let rec explain requires_prefix =
+    let prefix s = if requires_prefix then s else "" in
+    function
     | Atom a ->
       let prefix =
         if requires_prefix
@@ -115,16 +125,9 @@ module Ctype = struct
         else ""
       in
       String.cat prefix a
-    | Pointer t ->
-      Printf.sprintf
-        "%spointer to %s"
-        (if requires_prefix then "a " else "")
-        (explain true t)
-    | Const t ->
-      Printf.sprintf
-        "%simmutable %s"
-        (if requires_prefix then "an " else "")
-        (explain false t)
+    | Pointer t -> Printf.sprintf "%spointer to %s" (prefix "a ") (explain true t)
+    | Const t -> Printf.sprintf "%simmutable %s" (prefix "an ") (explain false t)
+    | Var_Args -> Printf.sprintf "%svariadic number of arguments" (prefix "a ")
   ;;
 
   let explain t = explain true t

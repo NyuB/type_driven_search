@@ -13,6 +13,16 @@ index [opts] { create; get; store; serve }: store and retrieve functions by sign
   exit code
 ;;
 
+let exit_with message code =
+  prerr_endline message;
+  exit code
+;;
+
+let or_exit message code = function
+  | Some v -> v
+  | None -> exit_with message code
+;;
+
 let explain args =
   if Array.length args < 1
   then usage_and_exit 1
@@ -23,9 +33,14 @@ let explain args =
 ;;
 
 module IndexCommand = struct
-  type options = { index_id : string }
+  type functions_format = C_Declarations
 
-  let defaults = { index_id = "FileBased" }
+  type options =
+    { index_id : string
+    ; format : functions_format
+    }
+
+  let defaults = { index_id = "FileBased"; format = C_Declarations }
 
   module StringMap = Map.Make (String)
 
@@ -36,16 +51,26 @@ module IndexCommand = struct
     |> StringMap.of_list
   ;;
 
+  let index_opt = "--index="
+  let format_opt = "--format="
+
+  let trim_opt opt arg =
+    String.sub arg (String.length opt) (String.length arg - String.length opt)
+  ;;
+
   let parse_arg (config, args) arg =
-    if String.starts_with ~prefix:"--index=" arg
+    if String.starts_with ~prefix:index_opt arg
     then (
-      let index_id =
-        String.sub
-          arg
-          (String.length "--index=")
-          (String.length arg - String.length "--index=")
+      let index_id = trim_opt index_opt arg in
+      { config with index_id }, args)
+    else if String.starts_with ~prefix:format_opt arg
+    then (
+      let format =
+        match trim_opt format_opt arg with
+        | "c" -> C_Declarations
+        | other -> exit_with (Printf.sprintf "unsupported format: '%s'" other) 2
       in
-      { index_id }, args)
+      { config with format }, args)
     else config, arg :: args
   ;;
 
@@ -62,11 +87,42 @@ module IndexCommand = struct
       List.iter (fun f -> print_endline @@ Index.CFunction.string_of_t f) fs
   ;;
 
-  let or_exit message code = function
-    | Some v -> v
-    | None ->
-      prerr_endline message;
-      exit code
+  let last l = List.nth_opt (List.rev l) 0
+
+  let ingest (type i) (module I : Index.S with type t = i) (index : i) from format =
+    let parse line =
+      match format with
+      | C_Declarations ->
+        let line =
+          String.sub line 0 (String.length line - 1)
+          (* Strip trailing ';' *)
+        in
+        let split_paren = String.split_on_char '(' line in
+        let before_paren = split_paren |> List.hd |> String.split_on_char ' ' in
+        let name =
+          before_paren |> last |> or_exit "Invalid c declaration, missing name" 3
+        in
+        let return =
+          before_paren |> List.rev |> List.tl |> List.rev |> String.concat " "
+        in
+        let only_sig =
+          String.concat "" [ return; "("; String.concat "" (List.tl split_paren) ]
+        in
+        let signature =
+          Signature.parse only_sig
+          |> or_exit (Printf.sprintf "Invalid signature for %s: '%s'" name only_sig) 3
+        in
+        let f : Index.CFunction.t = { name; signature } in
+        f
+    in
+    In_channel.with_open_text from
+    @@ fun ic ->
+    let lines =
+      In_channel.input_lines ic
+      |> List.filter @@ Fun.negate @@ String.starts_with ~prefix:"//"
+      |> List.map parse
+    in
+    I.store index lines
   ;;
 
   let run args =
@@ -102,6 +158,9 @@ module IndexCommand = struct
           print_endline "";
           exit 0
       done
+    | "ingest" ->
+      let index = I.init Index.{ file = args.(1); mode = Create } in
+      ingest (module I) index args.(2) config.format
     | _ -> failwith "Invalid command"
   ;;
 end
