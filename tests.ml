@@ -88,7 +88,7 @@ let signature_parsing_test input expected =
     fun () ->
     Alcotest.check
       (Alcotest.option signature_testable)
-      (Printf.sprintf "'%s' is correctly parsed as: %s" input expected_repr)
+      "Expected a successfull parsing"
       (Some expected)
       (Signature.parse input)
   in
@@ -170,6 +170,22 @@ let cfunction_testable : Signature.CFunction.t Alcotest.testable =
   Alcotest.testable
     (fun fmt f -> Format.pp_print_string fmt @@ Signature.CFunction.string_of_t f)
     Signature.CFunction.equal
+;;
+
+let declaration_parsing_test input expected =
+  ( Printf.sprintf "%s is parsed correctly" input
+  , fun () ->
+      Alcotest.check
+        (Alcotest.option cfunction_testable)
+        "Expected a successfull parsing"
+        (Some expected)
+        (Signature.CFunction.parse input) )
+;;
+
+let test_most_famous_declaration =
+  declaration_parsing_test
+    "int main(int, char**);"
+    { name = "main"; signature = make_signature "int" [ "int"; "char**" ] }
 ;;
 
 let modular_index_test (type i) (module I : Index.S with type t = i) create_index test =
@@ -391,6 +407,7 @@ let () =
            ; test_identifier_cannot_start_with_number
            ; test_varargs_parameter
            ] )
+       ; "C/C++ declaration parsing", [ test_most_famous_declaration ]
        ; modular_index_test_suite
            (module Index.InMemory)
            (fun () -> Index.InMemory.init ())

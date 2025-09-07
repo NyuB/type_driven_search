@@ -206,6 +206,24 @@ module CFunction = struct
     let equal a b = Compare.equality compare a b
   end
 
+  let parser =
+    let open Parsers in
+    Ctype.parser
+    |. whitespaces
+    |* identifier
+    |. whitespaces
+    |** list
+          ~prefix:(keyword "(")
+          ~suffix:(keyword ")")
+          ~sep:(whitespaces |. keyword ",")
+          (whitespaces ||> Ctype.parser)
+    |. whitespaces
+    |. keyword ";"
+    |/ fun (return, name, params) -> { name; signature = { return; params } }
+  ;;
+
+  let parse s = Parsers.parse_full parser s
+
   let string_of_t { name; signature } =
     Printf.sprintf
       "%s %s(%s)"

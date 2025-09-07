@@ -44,5 +44,13 @@ module CFunction : sig
   val signature : t -> s
   val compare : t -> t -> int
   val equal : t -> t -> bool
+
+  (** Matches C-style function declarations, e.g.
+  {[ int add(int, int); ]} *)
+  val parser : t Parsers.t
+
+  (** see {!val:CFunction.parser} *)
+  val parse : string -> t option
+
   val string_of_t : t -> string
 end

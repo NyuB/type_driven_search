@@ -87,40 +87,18 @@ module IndexCommand = struct
       List.iter (fun f -> print_endline @@ Signature.CFunction.string_of_t f) fs
   ;;
 
-  let last l = List.nth_opt (List.rev l) 0
-
   let ingest (type i) (module I : Index.S with type t = i) (index : i) from format =
-    let parse line =
+    let parse =
       match format with
-      | C_Declarations ->
-        let line =
-          String.sub line 0 (String.length line - 1)
-          (* Strip trailing ';' *)
-        in
-        let split_paren = String.split_on_char '(' line in
-        let before_paren = split_paren |> List.hd |> String.split_on_char ' ' in
-        let name =
-          before_paren |> last |> or_exit "Invalid c declaration, missing name" 3
-        in
-        let return =
-          before_paren |> List.rev |> List.tl |> List.rev |> String.concat " "
-        in
-        let only_sig =
-          String.concat "" [ return; "("; String.concat "" (List.tl split_paren) ]
-        in
-        let signature =
-          Signature.parse only_sig
-          |> or_exit (Printf.sprintf "Invalid signature for %s: '%s'" name only_sig) 3
-        in
-        let f : Signature.CFunction.t = { name; signature } in
-        f
+      | C_Declarations -> Signature.CFunction.parse
     in
     In_channel.with_open_text from
     @@ fun ic ->
     let lines =
       In_channel.input_lines ic
       |> List.filter @@ Fun.negate @@ String.starts_with ~prefix:"//"
-      |> List.map parse
+      |> List.map (fun l ->
+        parse l |> or_exit (Printf.sprintf "Invalid C function declaration: '%s'" l) 3)
     in
     I.store index lines
   ;;
