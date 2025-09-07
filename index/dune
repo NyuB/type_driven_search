@@ -2,8 +2,14 @@
  (name index)
  (package type_driven_search)
  (modules index)
- (libraries compare signature)
+ (libraries binary_search compare signature)
  (foreign_archives ../fs))
+
+(library
+ (name binary_search)
+ (package type_driven_search)
+ (modules binary_search)
+ (libraries))
 
 (tests
  (names index_tests)

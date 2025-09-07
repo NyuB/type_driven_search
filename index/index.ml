@@ -164,56 +164,6 @@ module FileBased : S with type config = config_open_file = struct
   ;;
 end
 
-module BinarySearch = struct
-  let insertion_index count compare =
-    if count = 0
-    then 0
-    else (
-      let high = count - 1 in
-      if compare 0 >= 0
-      then 0
-      else if compare high <= 0
-      then high + 1
-      else (
-        let rec loop low high =
-          assert (high >= low);
-          if low == high
-          then low
-          else if low = high - 1
-          then high
-          else (
-            let middle = low + ((high - low) / 2) in
-            let compared = compare middle in
-            if compared = 0
-            then middle
-            else if compared > 0
-            then (
-              assert (middle != high);
-              loop low middle)
-            else (
-              assert (middle != low);
-              loop middle high))
-        in
-        loop 0 high))
-  ;;
-
-  let index count compare =
-    let rec loop low high =
-      if low >= high
-      then None
-      else (
-        let middle = low + ((high - low) / 2) in
-        let compared = compare middle in
-        if compared = 0
-        then Some middle
-        else if compared > 0
-        then loop low middle
-        else loop (middle + 1) high)
-    in
-    loop 0 count
-  ;;
-end
-
 module FileBasedSorted : S with type config = config_open_file = struct
   type t = string
   type config = config_open_file
@@ -278,7 +228,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
   ;;
 
   let find_insertion_position reader count queried_signature =
-    BinarySearch.insertion_index count (fun i ->
+    Binary_search.insertion_index count (fun i ->
       let f_at_i =
         FixSizeEntryReader.really_input_entry reader i
         |> FunctionRepr.parse
@@ -318,7 +268,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
   let store t list = List.iter (store_one t) list
 
   let find_signature_position reader signature count =
-    BinarySearch.index count (fun i ->
+    Binary_search.index count (fun i ->
       let f_at_i =
         FixSizeEntryReader.really_input_entry reader i
         |> FunctionRepr.parse
