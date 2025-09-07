@@ -62,6 +62,17 @@ let test_list_parsing =
     [ "kw"; "mot-clef"; "keyword" ]
 ;;
 
+let test_whitespaces_parsing =
+  let open Parsers in
+  let parser = keyword "begin" |. whitespaces |* keyword "end" in
+  parsing_test
+    ~testable:(Alcotest.pair Alcotest.string Alcotest.string)
+    "whitespaces"
+    parser
+    "begin\n \tend"
+    ("begin", "end")
+;;
+
 let test_keyword_fail_parsing =
   parsing_fail_test
     ~testable:Alcotest.string
@@ -360,7 +371,11 @@ let () =
   Alcotest.run "Type driven search"
   @@ suites
        [ ( "Parser combinators"
-         , [ test_keyword_parsing; test_list_parsing; test_keyword_fail_parsing ] )
+         , [ test_keyword_parsing
+           ; test_list_parsing
+           ; test_keyword_fail_parsing
+           ; test_whitespaces_parsing
+           ] )
        ; ( "C/C++ signature parsing"
          , [ test_signature_void
            ; test_signature_int

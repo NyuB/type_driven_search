@@ -136,7 +136,7 @@ let take_while pred : string t =
   aux i
 ;;
 
-let whitespaces = take_while (( = ) ' ')
+let whitespaces = take_while (fun c -> List.mem c [ ' '; '\t'; '\n' ])
 let parse t input = t input
 
 let parse_full t input =
