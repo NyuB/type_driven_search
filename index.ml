@@ -164,6 +164,56 @@ module FileBased : S with type config = config_open_file = struct
   ;;
 end
 
+module BinarySearch = struct
+  let insertion_index count compare =
+    if count = 0
+    then 0
+    else (
+      let high = count - 1 in
+      if compare 0 >= 0
+      then 0
+      else if compare high <= 0
+      then high + 1
+      else (
+        let rec loop low high =
+          assert (high >= low);
+          if low == high
+          then low
+          else if low = high - 1
+          then high
+          else (
+            let middle = low + ((high - low) / 2) in
+            let compared = compare middle in
+            if compared = 0
+            then middle
+            else if compared > 0
+            then (
+              assert (middle != high);
+              loop low middle)
+            else (
+              assert (middle != low);
+              loop middle high))
+        in
+        loop 0 high))
+  ;;
+
+  let index count compare =
+    let rec loop low high =
+      if low >= high
+      then None
+      else (
+        let middle = low + ((high - low) / 2) in
+        let compared = compare middle in
+        if compared = 0
+        then Some middle
+        else if compared > 0
+        then loop low middle
+        else loop (middle + 1) high)
+    in
+    loop 0 count
+  ;;
+end
+
 module FileBasedSorted : S with type config = config_open_file = struct
   type t = string
   type config = config_open_file
@@ -227,55 +277,20 @@ module FileBasedSorted : S with type config = config_open_file = struct
     Filename.open_temp_file ~temp_dir:"." ~mode:[ Open_binary; Open_append ] t ".swp"
   ;;
 
-  let gte sa sb = Signature.compare sa sb >= 0
-  let lte sa sb = Signature.compare sa sb <= 0
-
-  let find_insertion_point reader count queried_signature =
-    if count = 0
-    then 0
-    else (
-      let high = count - 1 in
-      let low_line =
-        FixSizeEntryReader.really_input_entry reader 0 |> FunctionRepr.parse
+  let find_insertion_position reader count queried_signature =
+    BinarySearch.insertion_index count (fun i ->
+      let f_at_i =
+        FixSizeEntryReader.really_input_entry reader i
+        |> FunctionRepr.parse
+        |> Signature.CFunction.signature
+        |> Signature.canonical
       in
-      let high_line =
-        FixSizeEntryReader.really_input_entry reader high |> FunctionRepr.parse
-      in
-      if gte (Signature.canonical low_line.signature) queried_signature
-      then 0
-      else if lte (Signature.canonical high_line.signature) queried_signature
-      then high + 1
-      else (
-        let rec loop low high =
-          assert (high >= low);
-          if low == high
-          then low
-          else if low = high - 1
-          then high
-          else (
-            let middle = low + ((high - low) / 2) in
-            let mid_line =
-              FixSizeEntryReader.really_input_entry reader middle |> FunctionRepr.parse
-            in
-            let compare =
-              Signature.compare (Signature.canonical mid_line.signature) queried_signature
-            in
-            if compare = 0
-            then middle
-            else if compare > 0
-            then (
-              assert (middle != high);
-              loop low middle)
-            else (
-              assert (middle != low);
-              loop middle high))
-        in
-        loop 0 high))
+      Signature.compare f_at_i queried_signature)
   ;;
 
   let insert reader temp_oc (header : Header.t) (f : Signature.CFunction.t) : unit =
     let insertion_pos =
-      find_insertion_point reader header.count (Signature.canonical f.signature)
+      find_insertion_position reader header.count (Signature.canonical f.signature)
     in
     FixSizeEntryReader.pipe_all_before reader insertion_pos temp_oc;
     output_cfunction temp_oc f;
@@ -303,26 +318,14 @@ module FileBasedSorted : S with type config = config_open_file = struct
   let store t list = List.iter (store_one t) list
 
   let find_signature_position reader signature count =
-    let low = 0
-    and high = count in
-    let rec loop low high =
-      if low >= high
-      then None
-      else (
-        let middle = low + ((high - low) / 2) in
-        let mid_line =
-          FixSizeEntryReader.really_input_entry reader middle |> FunctionRepr.parse
-        in
-        let compare =
-          Signature.compare (Signature.canonical mid_line.signature) signature
-        in
-        if compare = 0
-        then Some middle
-        else if compare > 0
-        then loop low middle
-        else loop (middle + 1) high)
-    in
-    loop low high
+    BinarySearch.index count (fun i ->
+      let f_at_i =
+        FixSizeEntryReader.really_input_entry reader i
+        |> FunctionRepr.parse
+        |> Signature.CFunction.signature
+        |> Signature.canonical
+      in
+      Signature.compare f_at_i signature)
   ;;
 
   let all_around_position ~position ~count reader signature =
