@@ -351,6 +351,20 @@ let suite (name, tests) = name, List.map test tests
 let suites l = List.map suite l
 let temp_index_file () = Filename.temp_file ~temp_dir:"." "temp" ".txt"
 
+external mv : string -> string -> int = "mv"
+
+let test_mv =
+  ( "mv"
+  , fun () ->
+      let a = temp_index_file ()
+      and b = temp_index_file () in
+      Out_channel.with_open_text a (fun oc -> output_string oc "A");
+      let _ = mv a b in
+      Alcotest.check Alcotest.bool "The target file was created" true (Sys.file_exists b);
+      Alcotest.check Alcotest.bool "The source file was removed" false (Sys.file_exists a)
+  )
+;;
+
 let () =
   Alcotest.run "Type driven search"
   @@ suites
@@ -383,5 +397,6 @@ let () =
            (fun () ->
               Index.FileBasedSorted.init { file = temp_index_file (); mode = Create })
            tests_index
+       ; "Extern FFI", [ test_mv ]
        ]
 ;;
