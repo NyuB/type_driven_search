@@ -1,0 +1,16 @@
+(library
+ (name parsers)
+ (package type_driven_search)
+ (modules parsers)
+ (libraries))
+
+(library
+ (name compare)
+ (package type_driven_search)
+ (modules compare)
+ (libraries))
+
+(tests
+ (names parsers_tests)
+ (modules parsers_tests)
+ (libraries alcotest parsers))

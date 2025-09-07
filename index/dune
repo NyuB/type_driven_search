@@ -1,0 +1,11 @@
+(library
+ (name index)
+ (package type_driven_search)
+ (modules index)
+ (libraries compare signature)
+ (foreign_archives ../fs))
+
+(tests
+ (names index_tests)
+ (modules index_tests)
+ (libraries alcotest index signature testability))

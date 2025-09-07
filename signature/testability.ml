@@ -1,3 +1,5 @@
+(** Helpers to manipulate and test the Signature module *)
+
 let pseudo_random_name rand prefix =
   let length = 3 + Random.State.int rand 14 in
   prefix
@@ -33,3 +35,21 @@ let pick_n rand n l =
 ;;
 
 let reproducible_random () = Random.State.make [| 1; 2; 3; 5; 8 |]
+
+let make_signature ret ps =
+  Signature.
+    { return = Signature.Ctype.parse ret; params = List.map Signature.Ctype.parse ps }
+;;
+
+(** Alcotest specifics *)
+let signature_testable : Signature.t Alcotest.testable =
+  Alcotest.testable
+    (fun fmt signature -> Format.pp_print_string fmt @@ Signature.string_of_t signature)
+    Signature.equal
+;;
+
+let cfunction_testable : Signature.CFunction.t Alcotest.testable =
+  Alcotest.testable
+    (fun fmt f -> Format.pp_print_string fmt @@ Signature.CFunction.string_of_t f)
+    Signature.CFunction.equal
+;;

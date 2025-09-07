@@ -1,0 +1,15 @@
+(library
+ (name signature)
+ (package type_driven_search)
+ (modules signature)
+ (libraries compare parsers))
+
+(library
+ (name testability)
+ (modules testability)
+ (libraries alcotest index signature))
+
+(tests
+ (names signature_tests)
+ (modules signature_tests)
+ (libraries alcotest signature testability))
