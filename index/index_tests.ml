@@ -201,7 +201,7 @@ let test_index_query_void_params (type i) (module I : Index.S with type t = i) (
   =
   ( Printf.sprintf "Querying 't()' yields all entries with return type 't' (%s)" I.id
   , fun () ->
-      if not @@ String.equal I.id "TOOD"
+      if String.equal I.id "FileBasedSorted"
       then ()
       else (
         let fun_returning_t =
@@ -227,6 +227,38 @@ let test_index_query_void_params (type i) (module I : Index.S with type t = i) (
           results) )
 ;;
 
+let test_index_query_one_param (type i) (module I : Index.S with type t = i) (index : i) =
+  ( Printf.sprintf
+      "'t(p1)' yields all entries with return type 't' and at least one param 'p1' (%s)"
+      I.id
+  , fun () ->
+      if String.equal I.id "FileBasedSorted"
+      then ()
+      else (
+        let matching =
+          Signature.CFunction.
+            [ { name = "fa"; signature = Testability.make_signature "t" [ "p1" ] }
+            ; { name = "fb"; signature = Testability.make_signature "t" [ "p1"; "p1" ] }
+            ; { name = "fc"; signature = Testability.make_signature "t" [ "p1"; "p2" ] }
+            ]
+        and not_matching =
+          Signature.CFunction.
+            [ { name = "xa"; signature = Testability.make_signature "t" [] }
+            ; { name = "xb"; signature = Testability.make_signature "u" [] }
+            ; { name = "xc"; signature = Testability.make_signature "u" [ "p1" ] }
+            ]
+        in
+        I.store index (matching @ not_matching);
+        let results =
+          I.query index (make_query "t" [ "p1" ]) |> List.sort Signature.CFunction.compare
+        in
+        Alcotest.check
+          (Alcotest.list Testability.cfunction_testable)
+          "Expected all functions returning 't' with at least one param 'p1'"
+          matching
+          results) )
+;;
+
 let tests_index =
   [ test_index_store_get_single
   ; test_index_empty_get
@@ -236,6 +268,7 @@ let tests_index =
   ; test_index_interleaved_store
   ; test_index_respects_oracle
   ; test_index_query_void_params
+  ; test_index_query_one_param
   ]
 ;;
 

@@ -78,6 +78,19 @@ module type S = sig
   val query : t -> Query.t -> Signature.CFunction.t list
 end
 
+let matches_query (query : Query.t) (f : Signature.CFunction.t) =
+  let condensed = Query.condense_signature f.signature in
+  Signature.Ctype.equal condensed.return query.return
+  && List.for_all
+       (fun (queried : Query.Param.t) ->
+          List.exists
+            (fun (actual : Query.Param.t) ->
+               Signature.Ctype.equal actual.ctype queried.ctype
+               && actual.count >= queried.count)
+            condensed.params)
+       query.params
+;;
+
 module InMemory : S with type config = unit = struct
   type t = Signature.CFunction.t list ref
   type config = unit
@@ -94,7 +107,7 @@ module InMemory : S with type config = unit = struct
       !t
   ;;
 
-  let query _ _ = []
+  let query (t : t) (query : Query.t) = List.find_all (matches_query query) !t
 end
 
 type config_open_mode =
@@ -230,7 +243,17 @@ module FileBased : S with type config = config_open_file = struct
       aux [])
   ;;
 
-  let query _ _ = []
+  let query t query =
+    with_file_r t (fun ic ->
+      let rec aux acc =
+        match In_channel.input_line ic with
+        | None -> List.rev acc
+        | Some line ->
+          let f = FunctionRepr.parse line in
+          if matches_query query f then aux (f :: acc) else aux acc
+      in
+      aux [])
+  ;;
 end
 
 module FileBasedSorted : S with type config = config_open_file = struct
