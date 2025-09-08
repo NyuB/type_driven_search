@@ -3,6 +3,70 @@ let or_failwith message = function
   | None -> failwith message
 ;;
 
+module Query = struct
+  module Param = struct
+    type t =
+      { count : int
+      ; ctype : Signature.Ctype.t
+      }
+
+    let count t = t.count
+    let ctype t = t.ctype
+
+    let compare a b =
+      Compare.compare_by_each
+        [ Compare.compare_by Signature.Ctype.compare ctype
+        ; Compare.compare_by Int.compare count
+        ]
+        a
+        b
+    ;;
+
+    let equal = Compare.equality compare
+
+    let string_of_t { count; ctype } =
+      Printf.sprintf "(%d %s)" count (Signature.Ctype.string_of_t ctype)
+    ;;
+  end
+
+  type t =
+    { return : Signature.Ctype.t
+    ; params : Param.t list
+    }
+
+  let string_of_t { return; params } =
+    Printf.sprintf
+      "((returns %s) %s)"
+      (Signature.Ctype.string_of_t return)
+      (params |> List.map Param.string_of_t |> String.concat " ")
+  ;;
+
+  let highest_count_first a b =
+    Compare.compare_by
+      Int.compare
+      Param.count
+      (* Intentionnal reverse *)
+      b
+      a
+  ;;
+
+  let condense_signature (signature : Signature.t) : t =
+    let signature = Signature.canonical signature in
+    let params =
+      List.fold_left
+        (fun (acc : Param.t list) ctype ->
+           match acc with
+           | { count; ctype = ct } :: tail when Signature.Ctype.equal ctype ct ->
+             { count = count + 1; ctype } :: tail
+           | any -> { count = 1; ctype } :: any)
+        []
+        signature.params
+      |> List.sort highest_count_first
+    in
+    { return = signature.return; params }
+  ;;
+end
+
 module type S = sig
   type t
   type config
@@ -11,7 +75,7 @@ module type S = sig
   val init : config -> t
   val store : t -> Signature.CFunction.t list -> unit
   val get : t -> Signature.t -> Signature.CFunction.t list
-  val query : t -> Signature.t -> Signature.CFunction.t list
+  val query : t -> Query.t -> Signature.CFunction.t list
 end
 
 module InMemory : S with type config = unit = struct

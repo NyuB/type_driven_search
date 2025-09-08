@@ -16,6 +16,14 @@
  (modules index_tests)
  (libraries alcotest index signature testability))
 
+(library
+ (name index_expect_tests)
+ (modules index_expect_tests)
+ (libraries index)
+ (inline_tests)
+ (preprocess
+  (pps ppx_expect)))
+
 (tests
  (names binary_search_tests)
  (modules binary_search_tests)

@@ -195,6 +195,8 @@ let test_index_respects_oracle (type i) (module I : Index.S with type t = i) (in
             (I.get index query |> List.sort Signature.CFunction.compare))) )
 ;;
 
+let make_query r p = Index.Query.condense_signature @@ Testability.make_signature r p
+
 let test_index_query_void_params (type i) (module I : Index.S with type t = i) (index : i)
   =
   ( Printf.sprintf "Querying 't()' yields all entries with return type 't' (%s)" I.id
@@ -216,8 +218,7 @@ let test_index_query_void_params (type i) (module I : Index.S with type t = i) (
         in
         I.store index (fun_returning_t @ fun_not_returning_t);
         let results =
-          I.query index (Testability.make_signature "t" [])
-          |> List.sort Signature.CFunction.compare
+          I.query index (make_query "t" []) |> List.sort Signature.CFunction.compare
         in
         Alcotest.check
           (Alcotest.list Testability.cfunction_testable)

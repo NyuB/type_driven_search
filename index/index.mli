@@ -1,3 +1,29 @@
+(** C function indexed stores *)
+
+(** Signature query representation *)
+module Query : sig
+  module Param : sig
+    type t =
+      { count : int
+      ; ctype : Signature.Ctype.t
+      }
+
+    val count : t -> int
+    val ctype : t -> Signature.Ctype.t
+    val compare : t -> t -> int
+    val equal : t -> t -> bool
+    val string_of_t : t -> string
+  end
+
+  type t =
+    { return : Signature.Ctype.t
+    ; params : Param.t list
+    }
+
+  val string_of_t : t -> string
+  val condense_signature : Signature.t -> t
+end
+
 module type S = sig
   type t
   type config
@@ -14,7 +40,7 @@ module type S = sig
   val get : t -> Signature.t -> Signature.CFunction.t list
 
   (** [query index signature] retrieves all functions in index matching [signature]; A given signature [candidate] is considered matching [signature] if it has the same return type and [signature]'s parameters are a subset of [candidate]'s parameters *)
-  val query : t -> Signature.t -> Signature.CFunction.t list
+  val query : t -> Query.t -> Signature.CFunction.t list
 end
 
 (** For tests purposes, stores c-functions in non-persistent memory *)
