@@ -22,7 +22,7 @@ module Ctype = struct
       | _, Pointer _ -> -1
     ;;
 
-    let equal a b = Compare.equality a b
+    let equal a b = Compare.equality compare a b
   end
 
   let atom a = Atom a

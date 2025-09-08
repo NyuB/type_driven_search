@@ -6,7 +6,7 @@ module Ctype : sig
     | Var_Args
 
   val compare : t -> t -> int
-  val equal : ('a -> 'b -> int) -> 'a -> 'b -> bool
+  val equal : t -> t -> bool
   val atom : string -> t
   val pointer : t -> t
   val const : t -> t
