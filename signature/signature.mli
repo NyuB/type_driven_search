@@ -24,7 +24,10 @@ type t =
 val return : t -> Ctype.t
 val params : t -> Ctype.t list
 val string_of_t : t -> string
+
+(** Compare by return type first then parameters (see {!Ctype.compare})*)
 val compare : t -> t -> int
+
 val equal : t -> t -> bool
 val canonical : t -> t
 val parser : t Parsers.t
@@ -42,7 +45,11 @@ module CFunction : sig
 
   val name : t -> string
   val signature : t -> s
+
+  (** Compares by signature first then name (see {!Signature.compare})
+  *)
   val compare : t -> t -> int
+
   val equal : t -> t -> bool
 
   (** Matches C-style function declarations, e.g.

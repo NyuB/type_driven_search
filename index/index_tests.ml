@@ -193,30 +193,27 @@ let make_query r p = Index.Query.condense_signature @@ Testability.make_signatur
 let test_query_void_params (type i) (module I : Index.S with type t = i) (index : i) =
   ( Printf.sprintf "'t()' yields all entries with return type 't' (%s)" I.id
   , fun () ->
-      if String.equal I.id "FileBasedSorted"
-      then ()
-      else (
-        let fun_returning_t =
-          Signature.CFunction.
-            [ { name = "fa"; signature = Testability.make_signature "t" [] }
-            ; { name = "fb"; signature = Testability.make_signature "t" [ "p1" ] }
-            ; { name = "fc"; signature = Testability.make_signature "t" [ "p1"; "p2" ] }
-            ]
-        and fun_not_returning_t =
-          Signature.CFunction.
-            [ { name = "xa"; signature = Testability.make_signature "u" [] }
-            ; { name = "xb"; signature = Testability.make_signature "u" [ "t" ] }
-            ]
-        in
-        I.store index (fun_returning_t @ fun_not_returning_t);
-        let results =
-          I.query index (make_query "t" []) |> List.sort Signature.CFunction.compare
-        in
-        Alcotest.check
-          (Alcotest.list Testability.cfunction_testable)
-          "Expected all functions returning 't'"
-          fun_returning_t
-          results) )
+      let fun_returning_t =
+        Signature.CFunction.
+          [ { name = "fa"; signature = Testability.make_signature "t" [] }
+          ; { name = "fb"; signature = Testability.make_signature "t" [ "p1" ] }
+          ; { name = "fc"; signature = Testability.make_signature "t" [ "p1"; "p2" ] }
+          ]
+      and fun_not_returning_t =
+        Signature.CFunction.
+          [ { name = "xa"; signature = Testability.make_signature "u" [] }
+          ; { name = "xb"; signature = Testability.make_signature "u" [ "t" ] }
+          ]
+      in
+      I.store index (fun_returning_t @ fun_not_returning_t);
+      let results =
+        I.query index (make_query "t" []) |> List.sort Signature.CFunction.compare
+      in
+      Alcotest.check
+        (Alcotest.list Testability.cfunction_testable)
+        "Expected all functions returning 't'"
+        fun_returning_t
+        results )
 ;;
 
 let test_query_one_param (type i) (module I : Index.S with type t = i) (index : i) =
@@ -224,31 +221,28 @@ let test_query_one_param (type i) (module I : Index.S with type t = i) (index : 
       "'t(p1)' yields all entries with return type 't' and at least one param 'p1' (%s)"
       I.id
   , fun () ->
-      if String.equal I.id "FileBasedSorted"
-      then ()
-      else (
-        let matching =
-          Signature.CFunction.
-            [ { name = "fa"; signature = Testability.make_signature "t" [ "p1" ] }
-            ; { name = "fb"; signature = Testability.make_signature "t" [ "p1"; "p1" ] }
-            ; { name = "fc"; signature = Testability.make_signature "t" [ "p1"; "p2" ] }
-            ]
-        and not_matching =
-          Signature.CFunction.
-            [ { name = "xa"; signature = Testability.make_signature "t" [] }
-            ; { name = "xb"; signature = Testability.make_signature "u" [] }
-            ; { name = "xc"; signature = Testability.make_signature "u" [ "p1" ] }
-            ]
-        in
-        I.store index (matching @ not_matching);
-        let results =
-          I.query index (make_query "t" [ "p1" ]) |> List.sort Signature.CFunction.compare
-        in
-        Alcotest.check
-          (Alcotest.list Testability.cfunction_testable)
-          "Expected all functions returning 't' with at least one param 'p1'"
-          matching
-          results) )
+      let matching =
+        Signature.CFunction.
+          [ { name = "fa"; signature = Testability.make_signature "t" [ "p1" ] }
+          ; { name = "fb"; signature = Testability.make_signature "t" [ "p1"; "p1" ] }
+          ; { name = "fc"; signature = Testability.make_signature "t" [ "p1"; "p2" ] }
+          ]
+      and not_matching =
+        Signature.CFunction.
+          [ { name = "xa"; signature = Testability.make_signature "t" [] }
+          ; { name = "xb"; signature = Testability.make_signature "u" [] }
+          ; { name = "xc"; signature = Testability.make_signature "u" [ "p1" ] }
+          ]
+      in
+      I.store index (matching @ not_matching);
+      let results =
+        I.query index (make_query "t" [ "p1" ]) |> List.sort Signature.CFunction.compare
+      in
+      Alcotest.check
+        (Alcotest.list Testability.cfunction_testable)
+        "Expected all functions returning 't' with at least one param 'p1'"
+        matching
+        results )
 ;;
 
 let get_store_tests =

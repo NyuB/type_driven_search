@@ -18,7 +18,18 @@ let bench (module I : Index.S with type config = Index.config_open_file) =
     |> List.map Signature.CFunction.signature
     |> List.map (I.get index)
   in
-  [| I.id; string_of_float store_time; string_of_float get_time |]
+  let _, query_time =
+    _timed_execution
+    @@ fun () ->
+    List.init 1000 (fun _ -> Testability.pseudo_random_signature rand 10 10)
+    |> List.map Index.Query.condense_signature
+    |> List.map (I.query index)
+  in
+  [| I.id
+   ; string_of_float store_time
+   ; string_of_float get_time
+   ; string_of_float query_time
+  |]
 ;;
 
 let pad_left width str =
@@ -28,7 +39,7 @@ let pad_left width str =
 ;;
 
 let () =
-  let headers = [| "Index Type \\ Op(ms)"; "Store"; "Get" |] in
+  let headers = [| "Index Type \\ Op(ms)"; "Store"; "Get"; "Query" |] in
   let headers_suffix = Array.make (Array.length headers) "---" in
   let results = Dynarray.of_array [| headers; headers_suffix |] in
   Dynarray.add_last results @@ bench (module Index.FileBased);

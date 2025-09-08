@@ -405,5 +405,51 @@ module FileBasedSorted : S with type config = config_open_file = struct
       | Some position -> all_around_position reader ~position ~count query_signature)
   ;;
 
-  let query _ _ = []
+  (** FIXME Assumes functions are sorted by return-type first, this won't scale well ... *)
+  let find_return_type_position reader return count =
+    Binary_search.index count (fun i ->
+      let r_at_i =
+        FixSizeEntryReader.really_input_entry reader i
+        |> FunctionRepr.parse
+        |> Signature.CFunction.signature
+        |> Signature.return
+      in
+      Signature.Ctype.compare r_at_i return)
+  ;;
+
+  let all_return_around_position ~position ~count reader return =
+    let res = ref [] in
+    let i = ref position in
+    while !i >= 0 do
+      let line = FixSizeEntryReader.really_input_entry reader !i |> FunctionRepr.parse in
+      if Signature.Ctype.equal line.signature.return return
+      then (
+        res := line :: !res;
+        i := !i - 1)
+      else i := -1
+    done;
+    let j = ref (position + 1) in
+    while !j < count do
+      let line = FixSizeEntryReader.really_input_entry reader !j |> FunctionRepr.parse in
+      if Signature.Ctype.equal line.signature.return return
+      then (
+        res := line :: !res;
+        j := !j + 1)
+      else j := count
+    done;
+    !res
+  ;;
+
+  let query t (q : Query.t) =
+    with_file_r t (fun ic ->
+      let Header.{ count } = Header.read ic in
+      let reader = FixSizeEntryReader.init ic entry_size in
+      match find_return_type_position reader q.return count with
+      | None ->
+        print_endline "Found no position";
+        []
+      | Some position ->
+        all_return_around_position reader ~position ~count q.return
+        |> List.filter (matches_query q))
+  ;;
 end

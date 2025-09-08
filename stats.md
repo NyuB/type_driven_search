@@ -33,3 +33,10 @@
 |-------------------|--------|------|
 |          FileBased|     7. |26256.|
 |    FileBasedSorted|⚡9948. |   92.|
+
+## Introduce query, FileBasedSorted uses an half-ok approach indexing only on return type then searching linearly
+
+|Index Type \ Op(ms)|        Store|          Get|        Query|
+|-------------------|-------------|-------------|-------------|
+|          FileBased|4.82201576233|31749.8760223|33633.7549686|
+|    FileBasedSorted| 11045.167923|168.435096741|6928.34711075|
