@@ -245,6 +245,24 @@ let test_query_one_param (type i) (module I : Index.S with type t = i) (index : 
         results )
 ;;
 
+let test_uber_function (type i) (module I : Index.S with type t = i) (index : i) =
+  ( Printf.sprintf "Huuuuge function name & signature (%s)" I.id
+  , fun () ->
+      let huge_name = Printf.sprintf "H%sge" (String.make 500 'u')
+      and param = Printf.sprintf "B%sg" (String.make 500 'i') in
+      let cf =
+        Signature.CFunction.
+          { name = huge_name; signature = Testability.make_signature "void" [ param ] }
+      in
+      I.store index [ cf ];
+      let back = I.get index cf.signature in
+      Alcotest.check
+        (Alcotest.list Testability.cfunction_testable)
+        "Expected to get back the single function stored"
+        [ cf ]
+        back )
+;;
+
 let get_store_tests =
   ( "Store/Get"
   , [ test_store_get_single
@@ -254,6 +272,7 @@ let get_store_tests =
     ; test_sig_order_insignificant
     ; test_interleaved_store
     ; test_respects_oracle
+    ; test_uber_function
     ] )
 ;;
 

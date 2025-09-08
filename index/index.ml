@@ -301,7 +301,14 @@ module FileBasedSorted : S with type config = config_open_file = struct
   let fitting_entry_size s =
     let l = String.length s in
     if l > entry_size - 1 (* Account for the final \n *)
-    then failwith "Signature to long, complain to the developper"
+    then
+      failwith
+        (Printf.sprintf
+           "Entry '%s ... %s' too long (%d/%d)"
+           (String.sub s 0 15)
+           (String.sub s (l - 16) 15)
+           l
+           (entry_size - 1))
     else Printf.sprintf "%s%s\n" s (String.make (entry_size - l - 1) ' ')
   ;;
 
