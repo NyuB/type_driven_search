@@ -12,24 +12,19 @@ let signature_parsing_test input expected =
   title, exec
 ;;
 
-let test_signature_void =
-  signature_parsing_test "void ()" @@ Testability.make_signature "void" []
-;;
+let test_void = signature_parsing_test "void ()" @@ Testability.make_signature "void" []
+let test_int = signature_parsing_test "int ()" @@ Testability.make_signature "int" []
 
-let test_signature_int =
-  signature_parsing_test "int ()" @@ Testability.make_signature "int" []
-;;
-
-let test_signature_one_param =
+let test_one_param =
   signature_parsing_test "int (char)" @@ Testability.make_signature "int" [ "char" ]
 ;;
 
-let test_signature_two_param =
+let test_two_param =
   signature_parsing_test "int (char, int)"
   @@ Testability.make_signature "int" [ "char"; "int" ]
 ;;
 
-let test_signature_pointer =
+let test_pointer =
   signature_parsing_test "int (char**, int)"
   @@ Testability.make_signature "int" [ "char**"; "int" ]
 ;;
@@ -39,12 +34,12 @@ let test_condense_pointer =
   @@ Testability.make_signature "int" [ "char**"; "int" ]
 ;;
 
-let test_signature_const =
+let test_const =
   signature_parsing_test "void (char const*)"
   @@ Testability.make_signature "void" [ "char const*" ]
 ;;
 
-let test_signature_unsigned =
+let test_unsigned =
   signature_parsing_test "void (unsigned int)"
   @@ Testability.make_signature "void" [ "unsigned int" ]
 ;;
@@ -112,14 +107,14 @@ let () =
   Alcotest.run "C/C++ signature"
   @@ suites
        [ ( "Signature parsing"
-         , [ test_signature_void
-           ; test_signature_int
-           ; test_signature_one_param
-           ; test_signature_two_param
-           ; test_signature_pointer
+         , [ test_void
+           ; test_int
+           ; test_one_param
+           ; test_two_param
+           ; test_pointer
            ; test_condense_pointer
-           ; test_signature_const
-           ; test_signature_unsigned
+           ; test_const
+           ; test_unsigned
            ; test_only_east_const
            ; test_const_is_not_a_type
            ; test_identifier_can_contain_number

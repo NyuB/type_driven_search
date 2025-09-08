@@ -35,11 +35,11 @@ let parsing_fail_test
   title, exec
 ;;
 
-let test_keyword_parsing =
+let test_keyword_ok =
   parsing_test ~testable:Alcotest.string "keyword" (Parsers.keyword "kw") "kw" "kw"
 ;;
 
-let test_list_parsing =
+let test_list_ok =
   let open Parsers in
   let parser =
     list
@@ -56,7 +56,7 @@ let test_list_parsing =
     [ "kw"; "mot-clef"; "keyword" ]
 ;;
 
-let test_whitespaces_parsing =
+let test_whitespaces_ok =
   let open Parsers in
   let parser = keyword "begin" |. whitespaces |* keyword "end" in
   parsing_test
@@ -67,7 +67,7 @@ let test_whitespaces_parsing =
     ("begin", "end")
 ;;
 
-let test_keyword_fail_parsing =
+let test_keyword_ko =
   parsing_fail_test
     ~testable:Alcotest.string
     "keyword 'kw'"
@@ -82,7 +82,7 @@ let suites l = List.map suite l
 let () =
   Alcotest.run "Parser combinators"
   @@ suites
-       [ "Success", [ test_keyword_parsing; test_list_parsing; test_whitespaces_parsing ]
-       ; "Failure", [ test_keyword_fail_parsing ]
+       [ "Success", [ test_keyword_ok; test_list_ok; test_whitespaces_ok ]
+       ; "Failure", [ test_keyword_ko ]
        ]
 ;;

@@ -1,6 +1,6 @@
-let test_index_store_get_single (type i) (module I : Index.S with type t = i) (index : i) =
+let test_store_get_single (type i) (module I : Index.S with type t = i) (index : i) =
   ( Printf.sprintf
-      "Storing a function then querying it's signature yields back the stored function \
+      "Storing a function then getting it's signature yields back the stored function \
        (%s)"
       I.id
   , fun () ->
@@ -19,14 +19,10 @@ let test_index_store_get_single (type i) (module I : Index.S with type t = i) (i
         back )
 ;;
 
-let test_index_store_three_get_two
-      (type i)
-      (module I : Index.S with type t = i)
-      (index : i)
-  =
+let test_store_three_get_two (type i) (module I : Index.S with type t = i) (index : i) =
   ( Printf.sprintf
-      "Storing three functions, two having the same signature, retrieve both in one \
-       query (%s)"
+      "Storing three functions, two having the same signature, retrieve both in one get \
+       (%s)"
       I.id
   , fun () ->
       let shared_signature = Testability.make_signature "int" [ "int"; "int" ] in
@@ -49,8 +45,8 @@ let test_index_store_three_get_two
         back )
 ;;
 
-let test_index_empty_get (type i) (module I : Index.S with type t = i) (index : i) =
-  ( Printf.sprintf "Querying an empty index yields no result (%s)" I.id
+let test_empty_get (type i) (module I : Index.S with type t = i) (index : i) =
+  ( Printf.sprintf "Get from an empty index yields no result (%s)" I.id
   , fun () ->
       let back = I.get index @@ Testability.make_signature "void" [] in
       Alcotest.check
@@ -60,9 +56,9 @@ let test_index_empty_get (type i) (module I : Index.S with type t = i) (index : 
         back )
 ;;
 
-let test_index_no_match (type i) (module I : Index.S with type t = i) (index : i) =
+let test_no_match (type i) (module I : Index.S with type t = i) (index : i) =
   ( Printf.sprintf
-      "Storing a function then querying another signature yields no result (%s)"
+      "Storing a function then getting another signature yields no result (%s)"
       I.id
   , fun () ->
       let cf =
@@ -80,10 +76,7 @@ let test_index_no_match (type i) (module I : Index.S with type t = i) (index : i
         back )
 ;;
 
-let test_index_sig_order_insignificant
-      (type i)
-      (module I : Index.S with type t = i)
-      (index : i)
+let test_sig_order_insignificant (type i) (module I : Index.S with type t = i) (index : i)
   =
   ( Printf.sprintf "Search ignores parameters order (%s)" I.id
   , fun () ->
@@ -132,8 +125,7 @@ let test_index_sig_order_insignificant
         result )
 ;;
 
-let test_index_interleaved_store (type i) (module I : Index.S with type t = i) (index : i)
-  =
+let test_interleaved_store (type i) (module I : Index.S with type t = i) (index : i) =
   ( Printf.sprintf "Search after interleaved storage (%s)" I.id
   , fun () ->
       let queried_signature = Testability.make_signature "int" [] in
@@ -166,7 +158,7 @@ let test_index_interleaved_store (type i) (module I : Index.S with type t = i) (
         result )
 ;;
 
-let test_index_respects_oracle (type i) (module I : Index.S with type t = i) (index : i) =
+let test_respects_oracle (type i) (module I : Index.S with type t = i) (index : i) =
   ( Printf.sprintf "Matches the reference implementation (%s)" I.id
   , fun () ->
       if
@@ -184,22 +176,22 @@ let test_index_respects_oracle (type i) (module I : Index.S with type t = i) (in
           Testability.pick_n rand 1000 functions |> List.map Signature.CFunction.signature
         in
         queries
-        |> List.iter (fun query ->
+        |> List.iter (fun signature ->
           let mem_results =
-            Index.InMemory.get mem_index query |> List.sort Signature.CFunction.compare
+            Index.InMemory.get mem_index signature
+            |> List.sort Signature.CFunction.compare
           in
           Alcotest.check
             (Alcotest.list Testability.cfunction_testable)
             "Actual result matches reference implementation result"
             mem_results
-            (I.get index query |> List.sort Signature.CFunction.compare))) )
+            (I.get index signature |> List.sort Signature.CFunction.compare))) )
 ;;
 
 let make_query r p = Index.Query.condense_signature @@ Testability.make_signature r p
 
-let test_index_query_void_params (type i) (module I : Index.S with type t = i) (index : i)
-  =
-  ( Printf.sprintf "Querying 't()' yields all entries with return type 't' (%s)" I.id
+let test_query_void_params (type i) (module I : Index.S with type t = i) (index : i) =
+  ( Printf.sprintf "'t()' yields all entries with return type 't' (%s)" I.id
   , fun () ->
       if String.equal I.id "FileBasedSorted"
       then ()
@@ -227,7 +219,7 @@ let test_index_query_void_params (type i) (module I : Index.S with type t = i) (
           results) )
 ;;
 
-let test_index_query_one_param (type i) (module I : Index.S with type t = i) (index : i) =
+let test_query_one_param (type i) (module I : Index.S with type t = i) (index : i) =
   ( Printf.sprintf
       "'t(p1)' yields all entries with return type 't' and at least one param 'p1' (%s)"
       I.id
@@ -259,19 +251,19 @@ let test_index_query_one_param (type i) (module I : Index.S with type t = i) (in
           results) )
 ;;
 
-let tests_index =
-  [ test_index_store_get_single
-  ; test_index_empty_get
-  ; test_index_store_three_get_two
-  ; test_index_no_match
-  ; test_index_sig_order_insignificant
-  ; test_index_interleaved_store
-  ; test_index_respects_oracle
-  ; test_index_query_void_params
-  ; test_index_query_one_param
-  ]
+let get_store_tests =
+  ( "Store/Get"
+  , [ test_store_get_single
+    ; test_empty_get
+    ; test_store_three_get_two
+    ; test_no_match
+    ; test_sig_order_insignificant
+    ; test_interleaved_store
+    ; test_respects_oracle
+    ] )
 ;;
 
+let query_tests = "Query", [ test_query_void_params; test_query_one_param ]
 let test (name, exec) = Alcotest.test_case name `Quick exec
 let suite (name, tests) = name, List.map test tests
 let suites l = List.map suite l
@@ -284,9 +276,9 @@ let modular_index_test_suite
       (type i)
       (module I : Index.S with type t = i)
       create_index
-      tests
+      (label, tests)
   =
-  ( Printf.sprintf "Indexing (%s)" I.id
+  ( Printf.sprintf "%s (%s)" label I.id
   , List.map (modular_index_test (module I : Index.S with type t = i) create_index) tests
   )
 ;;
@@ -299,15 +291,28 @@ let () =
        [ modular_index_test_suite
            (module Index.InMemory)
            (fun () -> Index.InMemory.init ())
-           tests_index
+           get_store_tests
        ; modular_index_test_suite
            (module Index.FileBased)
            (fun () -> Index.FileBased.init { file = temp_index_file (); mode = Create })
-           tests_index
+           get_store_tests
        ; modular_index_test_suite
            (module Index.FileBasedSorted)
            (fun () ->
               Index.FileBasedSorted.init { file = temp_index_file (); mode = Create })
-           tests_index
+           get_store_tests
+       ; modular_index_test_suite
+           (module Index.InMemory)
+           (fun () -> Index.InMemory.init ())
+           query_tests
+       ; modular_index_test_suite
+           (module Index.FileBased)
+           (fun () -> Index.FileBased.init { file = temp_index_file (); mode = Create })
+           query_tests
+       ; modular_index_test_suite
+           (module Index.FileBasedSorted)
+           (fun () ->
+              Index.FileBasedSorted.init { file = temp_index_file (); mode = Create })
+           query_tests
        ]
 ;;
