@@ -399,9 +399,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
       let Header.{ count } = Header.read ic in
       let reader = FixSizeEntryReader.init ic entry_size in
       match find_signature_position reader query_signature count with
-      | None ->
-        print_endline "Found no position";
-        []
+      | None -> []
       | Some position -> all_around_position reader ~position ~count query_signature)
   ;;
 
@@ -445,9 +443,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
       let Header.{ count } = Header.read ic in
       let reader = FixSizeEntryReader.init ic entry_size in
       match find_return_type_position reader q.return count with
-      | None ->
-        print_endline "Found no position";
-        []
+      | None -> []
       | Some position ->
         all_return_around_position reader ~position ~count q.return
         |> List.filter (matches_query q))
