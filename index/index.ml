@@ -154,9 +154,11 @@ module FixSizeEntryReader = struct
     Int64.add t.start_pos @@ Int64.mul (itol entry_index) (itol t.entry_size)
   ;;
 
-  let really_input_entry t i =
+  let really_input_entry_bytes t i =
     In_channel.seek t.ic (offset t i);
-    really_input_string t.ic t.entry_size
+    let buff = Bytes.create t.entry_size in
+    really_input t.ic buff 0 t.entry_size;
+    buff
   ;;
 
   let pipe_all_before t i oc =
@@ -216,7 +218,7 @@ module FixSizeEntryReader = struct
     loop ()
   ;;
 
-  let _read_heap t heap_offset heap_len =
+  let read_heap t heap_offset heap_len =
     In_channel.seek t.ic (Int64.add (end_pos t) heap_offset);
     In_channel.really_input_string t.ic heap_len
     |> or_failwith
@@ -363,30 +365,12 @@ module FileBasedSorted : S with type config = config_open_file = struct
       file
   ;;
 
-  (* Fixed-size, fseekable entry *)
-  let entry_size = 150
-
-  let fitting_entry_size s =
-    let l = String.length s in
-    if l > entry_size - 1 (* Account for the final \n *)
-    then
-      failwith
-        (Printf.sprintf
-           "Entry '%s ... %s' too long (%d/%d)"
-           (String.sub s 0 15)
-           (String.sub s (l - 16) 15)
-           l
-           (entry_size - 1))
-    else Printf.sprintf "%s%s\n" s (String.make (entry_size - l - 1) ' ')
-  ;;
+  (* 64bits heap offset + 32 bits heap length *)
+  let entry_size = 8 + 4
 
   let cfunction_stored_representation ({ name; signature } : Signature.CFunction.t) =
-    Printf.sprintf "%s:%s" name (Signature.string_of_t signature)
-  ;;
-
-  let output_cfunction oc ({ name; signature } : Signature.CFunction.t) =
-    let sigstr = Printf.sprintf "%s:%s" name (Signature.string_of_t signature) in
-    Out_channel.output_string oc (fitting_entry_size sigstr)
+    let repr = Printf.sprintf "%s:%s" name (Signature.string_of_t signature) in
+    repr, String.length repr
   ;;
 
   let with_file_r f fn =
@@ -398,23 +382,43 @@ module FileBasedSorted : S with type config = config_open_file = struct
     Filename.open_temp_file ~temp_dir:"." ~mode:[ Open_binary; Open_append ] t ".swp"
   ;;
 
+  let output_index oc heap_offset heap_length =
+    let buff = Bytes.create entry_size in
+    Bytes.set_int64_le buff 0 heap_offset;
+    Bytes.set_int32_le buff 8 heap_length;
+    Out_channel.output_bytes oc buff
+  ;;
+
+  let input_index reader i =
+    let buff = FixSizeEntryReader.really_input_entry_bytes reader i in
+    let heap_offset = Bytes.get_int64_le buff 0 in
+    let heap_length = Bytes.get_int32_le buff 8 in
+    heap_offset, heap_length
+  ;;
+
+  let input_stored_function reader i =
+    input_index reader i
+    |> fun (heap_offset, heap_length) ->
+    FixSizeEntryReader.read_heap reader heap_offset (Int32.to_int heap_length)
+    |> FunctionRepr.parse
+  ;;
+
   let find_insertion_position (reader : FixSizeEntryReader.t) queried_signature =
     Binary_search.insertion_index reader.count (fun i ->
       let f_at_i =
-        FixSizeEntryReader.really_input_entry reader i
-        |> FunctionRepr.parse
+        input_stored_function reader i
         |> Signature.CFunction.signature
         |> Signature.canonical
       in
       Signature.compare f_at_i queried_signature)
   ;;
 
-  let insert reader temp_oc (f : Signature.CFunction.t) : unit =
+  let insert reader temp_oc (f : Signature.CFunction.t) heap_size heap_length : unit =
     let insertion_pos =
       find_insertion_position reader (Signature.canonical f.signature)
     in
     FixSizeEntryReader.pipe_all_before reader insertion_pos temp_oc;
-    output_cfunction temp_oc f;
+    output_index temp_oc heap_size heap_length;
     FixSizeEntryReader.pipe_all_entries_after reader insertion_pos temp_oc;
     FixSizeEntryReader.pipe_heap reader temp_oc
   ;;
@@ -431,13 +435,18 @@ module FileBasedSorted : S with type config = config_open_file = struct
     with_file_r t
     @@ fun ic ->
     let header = Header.read ic in
-    let repr = cfunction_stored_representation f in
+    let repr, repr_length = cfunction_stored_representation f in
     Header.write
       { count = header.count + 1
-      ; heap_size = Int64.add header.heap_size (String.length repr |> Int64.of_int)
+      ; heap_size = Int64.add header.heap_size (Int64.of_int repr_length)
       }
       temp_oc;
-    insert (FixSizeEntryReader.init ic entry_size header.count) temp_oc f;
+    insert
+      (FixSizeEntryReader.init ic entry_size header.count)
+      temp_oc
+      f
+      header.heap_size
+      (Int32.of_int repr_length);
     Out_channel.output_string temp_oc repr;
     Out_channel.flush temp_oc;
     swap_back t temp_t
@@ -448,8 +457,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
   let find_signature_position (reader : FixSizeEntryReader.t) signature =
     Binary_search.index reader.count (fun i ->
       let f_at_i =
-        FixSizeEntryReader.really_input_entry reader i
-        |> FunctionRepr.parse
+        input_stored_function reader i
         |> Signature.CFunction.signature
         |> Signature.canonical
       in
@@ -460,7 +468,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
     let res = ref [] in
     let i = ref position in
     while !i >= 0 do
-      let line = FixSizeEntryReader.really_input_entry reader !i |> FunctionRepr.parse in
+      let line = input_stored_function reader !i in
       if Signature.equal (Signature.canonical line.signature) signature
       then (
         res := line :: !res;
@@ -469,7 +477,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
     done;
     let j = ref (position + 1) in
     while !j < count do
-      let line = FixSizeEntryReader.really_input_entry reader !j |> FunctionRepr.parse in
+      let line = input_stored_function reader !j in
       if Signature.equal (Signature.canonical line.signature) signature
       then (
         res := line :: !res;
@@ -493,8 +501,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
   let find_return_type_position (reader : FixSizeEntryReader.t) return =
     Binary_search.index reader.count (fun i ->
       let r_at_i =
-        FixSizeEntryReader.really_input_entry reader i
-        |> FunctionRepr.parse
+        input_stored_function reader i
         |> Signature.CFunction.signature
         |> Signature.return
       in
@@ -505,7 +512,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
     let res = ref [] in
     let i = ref position in
     while !i >= 0 do
-      let line = FixSizeEntryReader.really_input_entry reader !i |> FunctionRepr.parse in
+      let line = input_stored_function reader !i in
       if Signature.Ctype.equal line.signature.return return
       then (
         res := line :: !res;
@@ -514,7 +521,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
     done;
     let j = ref (position + 1) in
     while !j < count do
-      let line = FixSizeEntryReader.really_input_entry reader !j |> FunctionRepr.parse in
+      let line = input_stored_function reader !j in
       if Signature.Ctype.equal line.signature.return return
       then (
         res := line :: !res;
