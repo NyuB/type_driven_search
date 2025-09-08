@@ -380,6 +380,10 @@ module FileBasedSorted : S with type config = config_open_file = struct
     else Printf.sprintf "%s%s\n" s (String.make (entry_size - l - 1) ' ')
   ;;
 
+  let cfunction_stored_representation ({ name; signature } : Signature.CFunction.t) =
+    Printf.sprintf "%s:%s" name (Signature.string_of_t signature)
+  ;;
+
   let output_cfunction oc ({ name; signature } : Signature.CFunction.t) =
     let sigstr = Printf.sprintf "%s:%s" name (Signature.string_of_t signature) in
     Out_channel.output_string oc (fitting_entry_size sigstr)
@@ -394,8 +398,8 @@ module FileBasedSorted : S with type config = config_open_file = struct
     Filename.open_temp_file ~temp_dir:"." ~mode:[ Open_binary; Open_append ] t ".swp"
   ;;
 
-  let find_insertion_position reader count queried_signature =
-    Binary_search.insertion_index count (fun i ->
+  let find_insertion_position (reader : FixSizeEntryReader.t) queried_signature =
+    Binary_search.insertion_index reader.count (fun i ->
       let f_at_i =
         FixSizeEntryReader.really_input_entry reader i
         |> FunctionRepr.parse
@@ -405,9 +409,9 @@ module FileBasedSorted : S with type config = config_open_file = struct
       Signature.compare f_at_i queried_signature)
   ;;
 
-  let insert reader temp_oc (header : Header.t) (f : Signature.CFunction.t) : unit =
+  let insert reader temp_oc (f : Signature.CFunction.t) : unit =
     let insertion_pos =
-      find_insertion_position reader header.count (Signature.canonical f.signature)
+      find_insertion_position reader (Signature.canonical f.signature)
     in
     FixSizeEntryReader.pipe_all_before reader insertion_pos temp_oc;
     output_cfunction temp_oc f;
@@ -427,8 +431,14 @@ module FileBasedSorted : S with type config = config_open_file = struct
     with_file_r t
     @@ fun ic ->
     let header = Header.read ic in
-    Header.write { count = header.count + 1; heap_size = header.heap_size } temp_oc;
-    insert (FixSizeEntryReader.init ic entry_size header.count) temp_oc header f;
+    let repr = cfunction_stored_representation f in
+    Header.write
+      { count = header.count + 1
+      ; heap_size = Int64.add header.heap_size (String.length repr |> Int64.of_int)
+      }
+      temp_oc;
+    insert (FixSizeEntryReader.init ic entry_size header.count) temp_oc f;
+    Out_channel.output_string temp_oc repr;
     Out_channel.flush temp_oc;
     swap_back t temp_t
   ;;
