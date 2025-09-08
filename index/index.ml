@@ -324,6 +324,10 @@ module FileBasedSorted : S with type config = config_open_file = struct
       ; heap_size : int64
       }
 
+    let one_more t length =
+      { count = t.count + 1; heap_size = Int64.add t.heap_size (Int64.of_int length) }
+    ;;
+
     let write t oc =
       Out_channel.output_string oc (string_of_int t.count);
       Out_channel.output_char oc ':';
@@ -370,6 +374,11 @@ module FileBasedSorted : S with type config = config_open_file = struct
   (* 64bits heap offset + 32 bits heap length *)
   let entry_size = 8 + 4
 
+  type index_entry =
+    { heap_offset : int64
+    ; heap_length : int32
+    }
+
   let cfunction_stored_representation ({ name; signature } : Signature.CFunction.t) =
     let repr = Printf.sprintf "%s:%s" name (Signature.string_of_t signature) in
     repr, String.length repr
@@ -415,12 +424,14 @@ module FileBasedSorted : S with type config = config_open_file = struct
       Signature.compare f_at_i queried_signature)
   ;;
 
-  let insert reader temp_oc (f : Signature.CFunction.t) heap_size heap_length : unit =
+  let insert reader temp_oc (f : Signature.CFunction.t) { heap_offset; heap_length }
+    : unit
+    =
     let insertion_pos =
       find_insertion_position reader (Signature.canonical f.signature)
     in
     FixSizeEntryReader.pipe_all_before reader insertion_pos temp_oc;
-    output_index temp_oc heap_size heap_length;
+    output_index temp_oc heap_offset heap_length;
     FixSizeEntryReader.pipe_all_entries_after reader insertion_pos temp_oc;
     FixSizeEntryReader.pipe_heap reader temp_oc
   ;;
@@ -435,17 +446,11 @@ module FileBasedSorted : S with type config = config_open_file = struct
     @@ fun ic ->
     let header = Header.read ic in
     let repr, repr_length = cfunction_stored_representation f in
-    Header.write
-      { count = header.count + 1
-      ; heap_size = Int64.add header.heap_size (Int64.of_int repr_length)
-      }
-      temp_oc;
-    insert
-      (FixSizeEntryReader.init ic entry_size header.count)
-      temp_oc
-      f
-      header.heap_size
-      (Int32.of_int repr_length);
+    let index_entry =
+      { heap_offset = header.heap_size; heap_length = Int32.of_int repr_length }
+    in
+    Header.write (Header.one_more header repr_length) temp_oc;
+    insert (FixSizeEntryReader.init ic entry_size header.count) temp_oc f index_entry;
     Out_channel.output_string temp_oc repr;
     Out_channel.flush temp_oc;
     mv temp_t t
