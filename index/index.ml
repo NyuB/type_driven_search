@@ -291,22 +291,24 @@ end
 
 (**
 {v 
-              ||======
-Header        ||count;heap_size
-              ||======
-Index      ^  ||<heap-offset(int64)> <heap-length(int32)> ---
-           |  ||...                                          |
-    count  |  ||...                                          |
-      x    |  ||... ----------------------                   |
-   (8 + 4) |  ||...                       |                  |
-           |  ||...                       |                  |
-           |  ||...                       |                  |
-           |  ||...                       |                  |
-           v  ||...                       |                  |
-              ||======                    v                  |
-Heap          ||<entry 1 (var size)> <entry2>                |
-              ||... <entry n (heap-length)> <----------------/
-              ||... <entry count>
+                  ||======
+Header            ||count;heap_size
+                  ||======
+Index          ^  ||<heap-offset(int64)> <heap-length(int32)> ---
+               |  ||...                                          |
+        count  |  ||...                                          |
+          x    |  ||... ----------------------                   |
+       (8 + 4) |  ||...                       |                  |
+               |  ||...                       |                  |
+               |  ||...                       |                  |
+               |  ||...                       |                  |
+               v  ||...                       |                  |
+                  ||======                    v                  |
+Heap           ^  ||<entry 1 (var size)> <entry2>                |
+               |  ||... <entry n (heap-length)> <----------------/
+     heap_size |  ||... ... ... ...
+               |  ||... ...
+               v  ||... <entry count>
 
 v}
 *)
