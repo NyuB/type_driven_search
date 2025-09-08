@@ -36,7 +36,14 @@
 
 ## Introduce query, FileBasedSorted uses an half-ok approach indexing only on return type then searching linearly
 
-|Index Type \ Op(ms)|        Store|          Get|        Query|
-|-------------------|-------------|-------------|-------------|
-|          FileBased|4.82201576233|31749.8760223|33633.7549686|
-|    FileBasedSorted| 11045.167923|168.435096741|6928.34711075|
+|Index Type \ Op(ms)| Store|   Get| Query|
+|-------------------|------|------|------|
+|          FileBased|    4.|31749.|33633.|
+|    FileBasedSorted|11045.|  168.| 6928.|
+
+## Use index indirection instead of storing plain entries sorted
+
+|Index Type \ Op(ms)|  Store|     Get|   Query|
+|-------------------|-------|--------|--------|
+|          FileBased|     5.| 35832. |  38154.|
+|    FileBasedSorted|⚡6126.| 🐌280.|🐌12695.|
