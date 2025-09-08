@@ -427,9 +427,6 @@ module FileBasedSorted : S with type config = config_open_file = struct
 
   external mv : string -> string -> unit = "mv"
 
-  (** swap_back t temp_t copies temp_t into t then deletes it *)
-  let swap_back t temp_t = ignore (mv temp_t t)
-
   let store_one t f : unit =
     let temp_t, temp_oc = temp_file_for t in
     Fun.protect ~finally:(fun () -> Out_channel.close_noerr temp_oc)
@@ -451,7 +448,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
       (Int32.of_int repr_length);
     Out_channel.output_string temp_oc repr;
     Out_channel.flush temp_oc;
-    swap_back t temp_t
+    mv temp_t t
   ;;
 
   let store t list = List.iter (store_one t) list
