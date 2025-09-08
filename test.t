@@ -6,7 +6,8 @@
   index [opts] { create; get; store; serve }: store and retrieve functions by signature
   |-- create <index>: initialize an empty index into the <index> file
   |-- store <index> <name> <signature>: stores the function <name> with the given <signature> into <index>
-  |-- get <index> <query>: list all functions stored within <index> matching <query>
+  |-- get <index> <signature>: list all functions stored within <index> having exactly <signature>
+  |-- query <index> <query>: list all functions stored within <index> matching <query>
   |-- serve <index>: enter an interactive mode waiting for queries on the standard input
   | --index=<index-id>: choose the indexing method where <index-id> is one of { FileBased (default); FileBasedSorted }
   [1]
@@ -83,9 +84,33 @@ Ingest
   int wredrawln(WINDOW*, int, int)
   int wresize(WINDOW*, int, int)
   int wsetscrreg(WINDOW*, int, int)
+
+Query
+  $ type_driven_search index --index="FileBasedSorted" query index.txt "int(WINDOW*, int, int, int)" 
+  int pnoutrefresh(WINDOW*, int, int, int, int, int, int)
+  int prefresh(WINDOW*, int, int, int, int, int, int)
+  int wtouchln(WINDOW*, int, int, int)
+  int mvwhline(WINDOW*, int, int, chtype, int)
+  int mvwvline(WINDOW*, int, int, chtype, int)
+  int copywin(WINDOW const*, WINDOW*, int, int, int, int, int, int, int)
+  int mvwvline_set(WINDOW*, int, int, cchar_t const*, int)
+  int mvwhline_set(WINDOW*, int, int, cchar_t const*, int)
+  int mvwadd_wchnstr(WINDOW*, int, int, cchar_t const*, int)
+  int mvwinsnstr(WINDOW*, int, int, char const*, int)
+  int mvwaddnstr(WINDOW*, int, int, char const*, int)
+  int mvwaddchnstr(WINDOW*, int, int, chtype const*, int)
+  int mvwchgat(WINDOW*, int, int, int, attr_t, short, void const*)
+  int mvwins_nwstr(WINDOW*, int, int, wchar_t const*, int)
+  int mvwaddnwstr(WINDOW*, int, int, wchar_t const*, int)
+  int mvwin_wchnstr(WINDOW*, int, int, cchar_t*, int)
+  int mvwinnstr(WINDOW*, int, int, char*, int)
+  int mvwgetnstr(WINDOW*, int, int, char*, int)
+  int mvwinchnstr(WINDOW*, int, int, chtype*, int)
+  int mvwinnwstr(WINDOW*, int, int, wchar_t*, int)
+  int mvwgetn_wstr(WINDOW*, int, int, wint_t*, int)
   $ rm index.txt
 
-
+Error cases
   $ type_driven_search index --index="Oops" create index.txt
   Invalid index type: 'Oops'
   [2]

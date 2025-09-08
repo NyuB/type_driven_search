@@ -7,7 +7,8 @@ explain <signature>: explains the C function <signature>
 index [opts] { create; get; store; serve }: store and retrieve functions by signature
 |-- create <index>: initialize an empty index into the <index> file
 |-- store <index> <name> <signature>: stores the function <name> with the given <signature> into <index>
-|-- get <index> <query>: list all functions stored within <index> matching <query>
+|-- get <index> <signature>: list all functions stored within <index> having exactly <signature>
+|-- query <index> <query>: list all functions stored within <index> matching <query>
 |-- serve <index>: enter an interactive mode waiting for queries on the standard input
 | --index=<index-id>: choose the indexing method where <index-id> is one of { FileBased (default); FileBasedSorted }|};
   exit code
@@ -87,6 +88,14 @@ module IndexCommand = struct
       List.iter (fun f -> print_endline @@ Signature.CFunction.string_of_t f) fs
   ;;
 
+  let query (type i) (module I : Index.S with type t = i) (index : i) query_as_signature =
+    match Signature.parse query_as_signature with
+    | None -> print_endline "Invalid signature"
+    | Some signature ->
+      let fs = I.query index (Index.Query.condense_signature signature) in
+      List.iter (fun f -> print_endline @@ Signature.CFunction.string_of_t f) fs
+  ;;
+
   let ingest (type i) (module I : Index.S with type t = i) (index : i) from format =
     let parse =
       match format with
@@ -123,6 +132,9 @@ module IndexCommand = struct
     | "get" ->
       let index = I.init Index.{ file = args.(1); mode = Connect } in
       get (module I) index args.(2)
+    | "query" ->
+      let index = I.init Index.{ file = args.(1); mode = Connect } in
+      query (module I) index args.(2)
     | "serve" ->
       let index = I.init Index.{ file = args.(1); mode = Connect } in
       while true do
