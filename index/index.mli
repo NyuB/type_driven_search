@@ -10,8 +10,11 @@ module type S = sig
   (** [store index cfunctions] persists [cfunctions] into the [index] *)
   val store : t -> Signature.CFunction.t list -> unit
 
-  (** [get index signature] retrieves all functions in [index] matching [signature] (ignoring parameters order) *)
+  (** [get index signature] retrieves all functions in [index] with the given [signature] (ignoring parameters order) *)
   val get : t -> Signature.t -> Signature.CFunction.t list
+
+  (** [query index signature] retrieves all functions in index matching [signature]; A given signature [candidate] is considered matching [signature] if it has the same return type and [signature]'s parameters are a subset of [candidate]'s parameters *)
+  val query : t -> Signature.t -> Signature.CFunction.t list
 end
 
 (** For tests purposes, stores c-functions in non-persistent memory *)

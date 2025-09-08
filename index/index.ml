@@ -11,6 +11,7 @@ module type S = sig
   val init : config -> t
   val store : t -> Signature.CFunction.t list -> unit
   val get : t -> Signature.t -> Signature.CFunction.t list
+  val query : t -> Signature.t -> Signature.CFunction.t list
 end
 
 module InMemory : S with type config = unit = struct
@@ -28,6 +29,8 @@ module InMemory : S with type config = unit = struct
          (Fun.compose Signature.canonical Signature.CFunction.signature))
       !t
   ;;
+
+  let query _ _ = []
 end
 
 type config_open_mode =
@@ -162,6 +165,8 @@ module FileBased : S with type config = config_open_file = struct
       in
       aux [])
   ;;
+
+  let query _ _ = []
 end
 
 module FileBasedSorted : S with type config = config_open_file = struct
@@ -312,4 +317,6 @@ module FileBasedSorted : S with type config = config_open_file = struct
         []
       | Some position -> all_around_position reader ~position ~count query_signature)
   ;;
+
+  let query _ _ = []
 end
