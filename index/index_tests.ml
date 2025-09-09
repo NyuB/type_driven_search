@@ -158,7 +158,7 @@ let test_interleaved_store (type i) (module I : Index.S with type t = i) (index 
         result )
 ;;
 
-let test_respects_oracle (type i) (module I : Index.S with type t = i) (index : i) =
+let test_get_respects_oracle (type i) (module I : Index.S with type t = i) (index : i) =
   ( Printf.sprintf "Matches the reference implementation (%s)" I.id
   , fun () ->
       if
@@ -245,6 +245,48 @@ let test_query_one_param (type i) (module I : Index.S with type t = i) (index : 
         results )
 ;;
 
+let pick_rand_params rand (signature : Signature.t) =
+  let nb_params =
+    Random.State.int_in_range rand ~min:0 ~max:(List.length signature.params)
+  in
+  Testability.pick_n rand nb_params signature.params
+;;
+
+let test_query_respects_oracle (type i) (module I : Index.S with type t = i) (index : i) =
+  ( Printf.sprintf "Matches the reference implementation (%s)" I.id
+  , fun () ->
+      if
+        (* Avoid redundant testing since this generates moult queries *)
+        String.equal I.id Index.InMemory.id
+      then ()
+      else (
+        let rand = Testability.reproducible_random () in
+        let functions = Testability.pseudo_random_functions rand 500 3 3 in
+        let mem_index = Index.InMemory.init () in
+        I.store index functions;
+        Index.InMemory.store mem_index functions;
+        let queries =
+          (* Queries are picked among stored function so their will always be matches *)
+          Testability.pick_n rand 1000 functions
+          |> List.map Signature.CFunction.signature
+          |> List.map (fun (signature : Signature.t) ->
+            { signature with params = pick_rand_params rand signature })
+          |> List.map Index.Query.condense_signature
+        in
+        queries
+        |> List.iter (fun query ->
+          let mem_results =
+            Index.InMemory.query mem_index query |> List.sort Signature.CFunction.compare
+          in
+          Alcotest.check
+            (Alcotest.list Testability.cfunction_testable)
+            (Printf.sprintf
+               "Actual result matches reference implementation result for query '%s'"
+               (Index.Query.string_of_t query))
+            mem_results
+            (I.query index query |> List.sort Signature.CFunction.compare))) )
+;;
+
 let test_uber_function (type i) (module I : Index.S with type t = i) (index : i) =
   ( Printf.sprintf "Huuuuge function name & signature (%s)" I.id
   , fun () ->
@@ -271,12 +313,15 @@ let get_store_tests =
     ; test_no_match
     ; test_sig_order_insignificant
     ; test_interleaved_store
-    ; test_respects_oracle
+    ; test_get_respects_oracle
     ; test_uber_function
     ] )
 ;;
 
-let query_tests = "Query", [ test_query_void_params; test_query_one_param ]
+let query_tests =
+  "Query", [ test_query_void_params; test_query_one_param; test_query_respects_oracle ]
+;;
+
 let test (name, exec) = Alcotest.test_case name `Quick exec
 let suite (name, tests) = name, List.map test tests
 let suites l = List.map suite l
