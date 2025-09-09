@@ -383,25 +383,37 @@ end
 (**
 {v 
                   ||======
-Header            ||count;heap_size
+Header            ||count;heap_size;tag_count
                   ||======
-Index          ^  ||<heap-offset(int64)> <heap-length(int32)> ---
-               |  ||...                                          |
-        count  |  ||...                                          |
-          x    |  ||... ----------------------                   |
-       (8 + 4) |  ||...                       |                  |
-               |  ||...                       |                  |
-               |  ||...                       |                  |
-               |  ||...                       |                  |
-               v  ||...                       |                  |
-                  ||======                    v                  |
-Heap           ^  ||<entry 1 (var size)> <entry2>                |
-               |  ||... <entry n (heap-length)> <----------------/
+Index          ^  ||<heap-offset(int64)> --------------
+               |  ||...                                |
+        count  |  ||...                                |
+          x    |  ||... ----------------------         |
+       (8 + 4) |  ||...                       |        |
+               |  ||...                       |        |
+               |  ||...                       |        |
+               |  ||...                       |        |
+               v  ||...                       |        |
+                  ||======                    |        |
+Tag index         || <heap_offset><tag_heap_offset>    |
+(TODO)            ||...                       |        |
+                  ||...                       |        |
+                  ||...                       |        |
+                  ||======                    v        |
+Heap           ^  ||<entry 1 (var size)> <entry 2>     |
+               |  ||... <entry n (heap-length)> <------/
      heap_size |  ||... ... ... ...
                |  ||... ...
                v  ||... <entry count>
-
+                  ||=====
+Tag heap          || <tag 1 var_size>   
+(TOOD)
 v}
+Where:
+- heap_offset, identify an offset from the start of the heap
+- `entry n` is the nth function entry stored, variable sized represented as [<length(int32)><data[length]>]
+- Index is a sorted section (by signature) of fixed-size pointers to a function in the heap
+- Tag index is a sorted section (by tag) of pointer pairs, one to the heap and one to the tag heap.
 *)
 module Storage = struct
   type t =
