@@ -43,7 +43,15 @@
 
 ## Use index indirection instead of storing plain entries sorted
 
-|Index Type \ Op(ms)|  Store|     Get|   Query|
-|-------------------|-------|--------|--------|
-|          FileBased|     5.| 35832. |  38154.|
-|    FileBasedSorted|⚡6126.| 🐌280.|🐌12695.|
+|Index Type \ Op(ms)|  Store|   Get|   Query|
+|-------------------|-------|------|--------|
+|          FileBased|     5.|35832.|  38154.|
+|    FileBasedSorted|⚡6126.|  280.|🐌12695.|
+
+## Also run the benchmark for the ⚡ InMemory version
+
+|Index Type \ Op(ms)|Store|   Get| Query|
+|-------------------|-----|------|------|
+|           InMemory|  85.|    5.| 3660.|
+|          FileBased|   3.|31634.|36173.|
+|    FileBasedSorted|6948.|  286.|10547.|

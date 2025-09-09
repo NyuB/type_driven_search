@@ -1,4 +1,4 @@
-.PHONY: default build fmt test test-promote
+.PHONY: default build fmt test test-promote benchmark
 
 # If INSTALL_ROOT is in your PATH, so will be the installed executable
 INSTALL_ROOT=~/bin
@@ -26,3 +26,10 @@ test:
 # Update expected test results with whatever the current output is, run this once you are ok with the current behaviour
 test-promote:
 	dune test --auto-promote
+
+#
+benchmark:
+	echo "" >> stats.md
+	echo "## Last benchmark" >> stats.md
+	echo "" >> stats.md
+	dune exec bin/benchmark.exe >> stats.md

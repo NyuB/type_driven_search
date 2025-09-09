@@ -91,23 +91,64 @@ let matches_query (query : Query.t) (f : Signature.CFunction.t) =
        query.params
 ;;
 
+let all_around_position ~position ~count get eq =
+  let res = ref [] in
+  let i = ref position in
+  while !i >= 0 do
+    let elem = get !i in
+    if eq elem
+    then (
+      res := elem :: !res;
+      i := !i - 1)
+    else i := -1
+  done;
+  let j = ref (position + 1) in
+  while !j < count do
+    let elem = get !j in
+    if eq elem
+    then (
+      res := elem :: !res;
+      j := !j + 1)
+    else j := count
+  done;
+  !res
+;;
+
 module InMemory : S with type config = unit = struct
-  type t = Signature.CFunction.t list ref
+  type t = Signature.CFunction.t Dynarray.t
   type config = unit
 
   let id = "InMemory"
-  let init () = ref []
-  let store t list = t := List.append !t list
+  let init () = Dynarray.init 0 (fun _ -> failwith "Unreachable")
 
-  let get t s : Signature.CFunction.t list =
-    List.filter
-      (Fun.compose
-         (Signature.equal (Signature.canonical s))
-         (Fun.compose Signature.canonical Signature.CFunction.signature))
-      !t
+  let store (t : t) list =
+    Dynarray.append_list t list;
+    let arr = Dynarray.to_array t in
+    Array.sort
+      (fun (fa : Signature.CFunction.t) (fb : Signature.CFunction.t) ->
+         Signature.compare
+           (Signature.canonical fa.signature)
+           (Signature.canonical fb.signature))
+      arr;
+    Dynarray.reset t;
+    Dynarray.append_array t arr
   ;;
 
-  let query (t : t) (query : Query.t) = List.find_all (matches_query query) !t
+  let get (t : t) s : Signature.CFunction.t list =
+    let canonical = Signature.canonical s in
+    match
+      Binary_search.index (Dynarray.length t) (fun i ->
+        Signature.compare (Signature.canonical (Dynarray.get t i).signature) canonical)
+    with
+    | None -> []
+    | Some position ->
+      all_around_position ~position ~count:(Dynarray.length t) (Dynarray.get t) (fun f ->
+        Signature.equal (Signature.canonical f.signature) canonical)
+  ;;
+
+  let query (t : t) (query : Query.t) =
+    Dynarray.filter (matches_query query) t |> Dynarray.to_list
+  ;;
 end
 
 type config_open_mode =
@@ -468,37 +509,16 @@ module FileBasedSorted : S with type config = config_open_file = struct
       Signature.compare f_at_i signature)
   ;;
 
-  let all_around_position ~position ~count reader signature =
-    let res = ref [] in
-    let i = ref position in
-    while !i >= 0 do
-      let line = input_stored_function reader !i in
-      if Signature.equal (Signature.canonical line.signature) signature
-      then (
-        res := line :: !res;
-        i := !i - 1)
-      else i := -1
-    done;
-    let j = ref (position + 1) in
-    while !j < count do
-      let line = input_stored_function reader !j in
-      if Signature.equal (Signature.canonical line.signature) signature
-      then (
-        res := line :: !res;
-        j := !j + 1)
-      else j := count
-    done;
-    !res
-  ;;
-
   let get t signature =
-    let query_signature = Signature.canonical signature in
+    let canonical = Signature.canonical signature in
     with_file_r t (fun ic ->
       let Header.{ count; _ } = Header.read ic in
       let reader = FixSizeEntryReader.init ic entry_size count in
-      match find_signature_position reader query_signature with
+      match find_signature_position reader canonical with
       | None -> []
-      | Some position -> all_around_position reader ~position ~count query_signature)
+      | Some position ->
+        all_around_position ~count ~position (input_stored_function reader) (fun f ->
+          Signature.equal (Signature.canonical f.signature) canonical))
   ;;
 
   (** FIXME Assumes functions are sorted by return-type first, this won't scale well ... *)
@@ -512,29 +532,6 @@ module FileBasedSorted : S with type config = config_open_file = struct
       Signature.Ctype.compare r_at_i return)
   ;;
 
-  let all_return_around_position ~position ~count reader return =
-    let res = ref [] in
-    let i = ref position in
-    while !i >= 0 do
-      let line = input_stored_function reader !i in
-      if Signature.Ctype.equal line.signature.return return
-      then (
-        res := line :: !res;
-        i := !i - 1)
-      else i := -1
-    done;
-    let j = ref (position + 1) in
-    while !j < count do
-      let line = input_stored_function reader !j in
-      if Signature.Ctype.equal line.signature.return return
-      then (
-        res := line :: !res;
-        j := !j + 1)
-      else j := count
-    done;
-    !res
-  ;;
-
   let query t (q : Query.t) =
     with_file_r t (fun ic ->
       let Header.{ count; _ } = Header.read ic in
@@ -542,7 +539,8 @@ module FileBasedSorted : S with type config = config_open_file = struct
       match find_return_type_position reader q.return with
       | None -> []
       | Some position ->
-        all_return_around_position reader ~position ~count q.return
+        all_around_position ~count ~position (input_stored_function reader) (fun f ->
+          Signature.Ctype.equal f.signature.return q.return)
         |> List.filter (matches_query q))
   ;;
 end

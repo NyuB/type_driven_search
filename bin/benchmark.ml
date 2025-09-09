@@ -32,6 +32,32 @@ let bench (module I : Index.S with type config = Index.config_open_file) =
   |]
 ;;
 
+module type Adapter = sig
+  type a
+  type b
+
+  val map : a -> b
+end
+
+module AdaptIndex (A : Adapter) (I : Index.S with type config = A.b) :
+  Index.S with type config = A.a and type t = I.t = struct
+  include I
+
+  type config = A.a
+
+  let init = Fun.compose init A.map
+end
+
+module InMemory =
+  AdaptIndex
+    (struct
+      type a = Index.config_open_file
+      type b = unit
+
+      let map _ = ()
+    end)
+    (Index.InMemory)
+
 let pad_left width str =
   let padding_char = if String.starts_with ~prefix:"---" str then '-' else ' ' in
   let padding = width - String.length str in
@@ -42,6 +68,7 @@ let () =
   let headers = [| "Index Type \\ Op(ms)"; "Store"; "Get"; "Query" |] in
   let headers_suffix = Array.make (Array.length headers) "---" in
   let results = Dynarray.of_array [| headers; headers_suffix |] in
+  Dynarray.add_last results @@ bench (module InMemory);
   Dynarray.add_last results @@ bench (module Index.FileBased);
   Dynarray.add_last results @@ bench (module Index.FileBasedSorted);
   let cell_widths =
