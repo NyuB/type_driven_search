@@ -114,29 +114,12 @@ let all_around_position ~position ~count get eq =
   !res
 ;;
 
-type cfunction_dynarray = Signature.CFunction.t Dynarray.t
-
-let cfunction_dynarray_empty ~capacity : cfunction_dynarray =
-  let res = Dynarray.init 0 (fun _ -> failwith "Impossible") in
-  Dynarray.ensure_capacity res capacity;
-  res
-;;
-
-module InMemory : sig
-  include S with type config = unit and type t = cfunction_dynarray
-
-  val unsafe_init : cfunction_dynarray -> t
-end = struct
-  type t = cfunction_dynarray
+module InMemory : S with type config = unit = struct
+  type t = Signature.CFunction.t Dynarray.t
   type config = unit
 
   let id = "InMemory"
-  let init () = cfunction_dynarray_empty ~capacity:0
-
-  (**
-  @param t assumed sorted by {!Index.CFunction.t}'s signature
-  *)
-  let unsafe_init (t : cfunction_dynarray) = t
+  let init () = Dynarray.init 0 (fun _ -> failwith "Unreachable")
 
   let store (t : t) list =
     Dynarray.append_list t list;
@@ -147,7 +130,7 @@ end = struct
            (Signature.canonical fa.signature)
            (Signature.canonical fb.signature))
       arr;
-    Dynarray.clear t;
+    Dynarray.reset t;
     Dynarray.append_array t arr
   ;;
 
@@ -538,20 +521,26 @@ module FileBasedSorted : S with type config = config_open_file = struct
           Signature.equal (Signature.canonical f.signature) canonical))
   ;;
 
-  let to_dynarray t =
-    with_file_r t
-    @@ fun ic ->
-    let header = Header.read ic in
-    let reader = FixSizeEntryReader.init ic entry_size header.count in
-    let arr = cfunction_dynarray_empty ~capacity:header.count in
-    for i = 0 to header.count - 1 do
-      Dynarray.add_last arr @@ input_stored_function reader i
-    done;
-    arr
+  (** FIXME Assumes functions are sorted by return-type first, this won't scale well ... *)
+  let find_return_type_position (reader : FixSizeEntryReader.t) return =
+    Binary_search.index reader.count (fun i ->
+      let r_at_i =
+        input_stored_function reader i
+        |> Signature.CFunction.signature
+        |> Signature.return
+      in
+      Signature.Ctype.compare r_at_i return)
   ;;
 
   let query t (q : Query.t) =
-    let in_memory = InMemory.unsafe_init (to_dynarray t) in
-    InMemory.query in_memory q
+    with_file_r t (fun ic ->
+      let Header.{ count; _ } = Header.read ic in
+      let reader = FixSizeEntryReader.init ic entry_size count in
+      match find_return_type_position reader q.return with
+      | None -> []
+      | Some position ->
+        all_around_position ~count ~position (input_stored_function reader) (fun f ->
+          Signature.Ctype.equal f.signature.return q.return)
+        |> List.filter (matches_query q))
   ;;
 end
