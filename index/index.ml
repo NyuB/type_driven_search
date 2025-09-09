@@ -362,16 +362,26 @@ module Header = struct
   type t =
     { count : int
     ; heap_size : int64
+    ; tag_count : int
+    ; tag_heap_size : int64
     }
 
   let one_more t length =
-    { count = t.count + 1; heap_size = Int64.add t.heap_size (Int64.of_int length) }
+    { count = t.count + 1
+    ; heap_size = Int64.add t.heap_size (Int64.of_int length)
+    ; tag_count = t.tag_count
+    ; tag_heap_size = t.tag_heap_size
+    }
   ;;
 
   let write t oc =
     Out_channel.output_string oc (string_of_int t.count);
     Out_channel.output_char oc ':';
     Out_channel.output_string oc (Int64.to_string t.heap_size);
+    Out_channel.output_char oc ':';
+    Out_channel.output_string oc (string_of_int t.tag_count);
+    Out_channel.output_char oc ':';
+    Out_channel.output_string oc (Int64.to_string t.tag_heap_size);
     Out_channel.output_char oc '\n'
   ;;
 
@@ -392,10 +402,21 @@ module Header = struct
       Option.bind opt Int64.of_string_opt
       |> or_failwith "Could not read heap size from header"
     in
-    { count; heap_size }
+    let tag_count =
+      List.nth_opt metadata 2
+      |> fun opt ->
+      Option.bind opt int_of_string_opt |> or_failwith "Could not read count from header"
+    in
+    let tag_heap_size =
+      List.nth_opt metadata 1
+      |> fun opt ->
+      Option.bind opt Int64.of_string_opt
+      |> or_failwith "Could not read heap size from header"
+    in
+    { count; heap_size; tag_count; tag_heap_size }
   ;;
 
-  let init = { count = 0; heap_size = 0L }
+  let init = { count = 0; heap_size = 0L; tag_count = 0; tag_heap_size = 0L }
 end
 
 (**
@@ -438,20 +459,37 @@ module Storage = struct
     { header : Header.t (** Storage metadata *)
     ; index_reader : FixSizeEntryReader.t
       (** A reader into the fixed-size index part of the store, to retrieve pointers to the heap *)
+    ; tag_index_reader : FixSizeEntryReader.t
     ; heap_reader : Heap_Section.t
       (** A reader into the heap part of the store, to read arbitrary data *)
+    ; tag_heap_reader : Heap_Section.t
     }
 
   (* 64bits heap offset *)
   let entry_size = 8
+
+  (** 2 x 64bits heap offsets *)
+  let tag_entry_size = entry_size * 2
 
   let init ic =
     let header = Header.read ic in
     let index_reader =
       FixSizeEntryReader.init ic ~entry_size ~count:header.count (In_channel.pos ic)
     in
-    let heap_reader = Heap_Section.init ic (FixSizeEntryReader.end_pos index_reader) in
-    { header; index_reader; heap_reader }
+    let tag_index_reader =
+      FixSizeEntryReader.init
+        ic
+        ~entry_size:tag_entry_size
+        ~count:header.tag_count
+        (FixSizeEntryReader.end_pos index_reader)
+    in
+    let heap_reader =
+      Heap_Section.init ic (FixSizeEntryReader.end_pos tag_index_reader)
+    in
+    let tag_heap_reader =
+      Heap_Section.init ic (Int64.add heap_reader.start_pos header.heap_size)
+    in
+    { header; index_reader; heap_reader; tag_index_reader; tag_heap_reader }
   ;;
 end
 
@@ -522,7 +560,9 @@ module FileBasedSorted : S with type config = config_open_file = struct
     FixSizeEntryReader.pipe_all_before storage.index_reader insertion_pos temp_oc;
     output_index temp_oc heap_offset;
     FixSizeEntryReader.pipe_all_after storage.index_reader insertion_pos temp_oc;
-    Heap_Section.pipe_all storage.heap_reader temp_oc
+    FixSizeEntryReader.pipe_all_after storage.tag_index_reader 0 temp_oc;
+    Heap_Section.pipe_all storage.heap_reader temp_oc;
+    Heap_Section.pipe_all storage.tag_heap_reader temp_oc
   ;;
 
   external mv : string -> string -> unit = "mv"
