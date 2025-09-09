@@ -1,6 +1,6 @@
 (library
+ (public_name type_driven_search.index)
  (name index)
- (package type_driven_search)
  (modules index)
  (libraries binary_search compare signature)
  (foreign_archives ../fs))

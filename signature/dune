@@ -1,6 +1,6 @@
 (library
+ (public_name type_driven_search.signature)
  (name signature)
- (package type_driven_search)
  (modules signature)
  (libraries compare parsers))
 
