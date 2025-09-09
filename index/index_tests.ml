@@ -19,10 +19,9 @@ let test_store_get_single (type i) (module I : Index.S with type t = i) (index :
         back )
 ;;
 
-let test_store_three_get_two (type i) (module I : Index.S with type t = i) (index : i) =
+let test_three_store_get_two (type i) (module I : Index.S with type t = i) (index : i) =
   ( Printf.sprintf
-      "Storing three functions, two having the same signature, retrieve both in one get \
-       (%s)"
+      "Store three functions successively, get two with the same signature (%s)"
       I.id
   , fun () ->
       let shared_signature = Testability.make_signature "int" [ "int"; "int" ] in
@@ -37,6 +36,29 @@ let test_store_three_get_two (type i) (module I : Index.S with type t = i) (inde
       I.store index [ fmain ];
       I.store index [ fadd ];
       I.store index [ fmul ];
+      let back = I.get index shared_signature |> List.sort Signature.CFunction.compare in
+      Alcotest.check
+        (Alcotest.list Testability.cfunction_testable)
+        "Expected to get back the two functions having he queried signature"
+        [ fadd; fmul ]
+        back )
+;;
+
+let test_store_three_get_two (type i) (module I : Index.S with type t = i) (index : i) =
+  ( Printf.sprintf
+      "Stores three functions in one batch, get two with the same signature (%s)"
+      I.id
+  , fun () ->
+      let shared_signature = Testability.make_signature "int" [ "int"; "int" ] in
+      let fadd = Signature.CFunction.{ name = "add"; signature = shared_signature }
+      and fmul = Signature.CFunction.{ name = "mul"; signature = shared_signature }
+      and fmain =
+        Signature.CFunction.
+          { name = "main"
+          ; signature = Testability.make_signature "int" [ "int"; "char**" ]
+          }
+      in
+      I.store index [ fmain; fadd; fmul ];
       let back = I.get index shared_signature |> List.sort Signature.CFunction.compare in
       Alcotest.check
         (Alcotest.list Testability.cfunction_testable)
@@ -309,6 +331,7 @@ let get_store_tests =
   ( "Store/Get"
   , [ test_store_get_single
     ; test_empty_get
+    ; test_three_store_get_two
     ; test_store_three_get_two
     ; test_no_match
     ; test_sig_order_insignificant
