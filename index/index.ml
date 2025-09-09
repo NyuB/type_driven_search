@@ -246,7 +246,13 @@ module FixSizeEntryReader = struct
   ;;
 end
 
-module HeapReader = struct
+module Heap_Section = struct
+  (** An offset into the heap *)
+  type heap_offset = int64
+
+  (** int32 *)
+  let var_len_size = 4
+
   (** byte range from a file position to it's end *)
   type t =
     { ic : In_channel.t
@@ -269,11 +275,23 @@ module HeapReader = struct
     loop ()
   ;;
 
-  let read_string t heap_offset heap_len =
+  let read_string t (heap_offset : heap_offset) =
     In_channel.seek t.ic (Int64.add t.start_pos heap_offset);
-    In_channel.really_input_string t.ic heap_len
+    let buff = Bytes.create var_len_size in
+    In_channel.really_input t.ic buff 0 var_len_size
+    |> or_failwith (Printf.sprintf "Unable to read length at heap offset %Ld" heap_offset);
+    let heap_len = Bytes.get_int32_le buff 0 in
+    In_channel.really_input_string t.ic (Int32.to_int heap_len)
     |> or_failwith
-         (Printf.sprintf "Invalid heap read range at index %Ld:%d" heap_offset heap_len)
+         (Printf.sprintf "Invalid heap read range at index %Ld:%ld" heap_offset heap_len)
+  ;;
+
+  (** [write_string oc s] writes [s] into [oc] prefied by it's length as a 32 bits integer *)
+  let write_string oc s =
+    let buff = Bytes.create var_len_size in
+    Bytes.set_int32_le buff 0 (Int32.of_int @@ String.length s);
+    Out_channel.output oc buff 0 var_len_size;
+    Out_channel.output_string oc s
   ;;
 end
 
@@ -420,19 +438,19 @@ module Storage = struct
     { header : Header.t (** Storage metadata *)
     ; index_reader : FixSizeEntryReader.t
       (** A reader into the fixed-size index part of the store, to retrieve pointers to the heap *)
-    ; heap_reader : HeapReader.t
+    ; heap_reader : Heap_Section.t
       (** A reader into the heap part of the store, to read arbitrary data *)
     }
 
-  (* 64bits heap offset + 32 bits heap length *)
-  let entry_size = 8 + 4
+  (* 64bits heap offset *)
+  let entry_size = 8
 
   let init ic =
     let header = Header.read ic in
     let index_reader =
       FixSizeEntryReader.init ic ~entry_size ~count:header.count (In_channel.pos ic)
     in
-    let heap_reader = HeapReader.init ic (FixSizeEntryReader.end_pos index_reader) in
+    let heap_reader = Heap_Section.init ic (FixSizeEntryReader.end_pos index_reader) in
     { header; index_reader; heap_reader }
   ;;
 end
@@ -455,11 +473,6 @@ module FileBasedSorted : S with type config = config_open_file = struct
       file
   ;;
 
-  type index_entry =
-    { heap_offset : int64
-    ; heap_length : int32
-    }
-
   let cfunction_stored_representation ({ name; signature } : Signature.CFunction.t) =
     let repr = Printf.sprintf "%s:%s" name (Signature.string_of_t signature) in
     repr, String.length repr
@@ -474,25 +487,22 @@ module FileBasedSorted : S with type config = config_open_file = struct
     Filename.open_temp_file ~temp_dir:"." ~mode:[ Open_binary; Open_append ] t ".swp"
   ;;
 
-  let output_index oc heap_offset heap_length =
+  let output_index oc heap_offset =
     let buff = Bytes.create Storage.entry_size in
     Bytes.set_int64_le buff 0 heap_offset;
-    Bytes.set_int32_le buff 8 heap_length;
     Out_channel.output_bytes oc buff
   ;;
 
-  let input_index (storage : Storage.t) i =
+  let input_index (storage : Storage.t) i : Heap_Section.heap_offset =
     let buff = FixSizeEntryReader.really_input_entry storage.index_reader i in
     let heap_offset = Bytes.get_int64_le buff 0 in
-    let heap_length = Bytes.get_int32_le buff 8 in
-    heap_offset, heap_length
+    heap_offset
   ;;
 
   let input_stored_function (storage : Storage.t) i =
     input_index storage i
-    |> fun (heap_offset, heap_length) ->
-    HeapReader.read_string storage.heap_reader heap_offset (Int32.to_int heap_length)
-    |> FunctionRepr.parse
+    |> fun heap_offset ->
+    Heap_Section.read_string storage.heap_reader heap_offset |> FunctionRepr.parse
   ;;
 
   let find_insertion_position (storage : Storage.t) queried_signature =
@@ -505,20 +515,14 @@ module FileBasedSorted : S with type config = config_open_file = struct
       Signature.compare f_at_i queried_signature)
   ;;
 
-  let insert
-        (storage : Storage.t)
-        temp_oc
-        (f : Signature.CFunction.t)
-        { heap_offset; heap_length }
-    : unit
-    =
+  let insert (storage : Storage.t) temp_oc (f : Signature.CFunction.t) heap_offset : unit =
     let insertion_pos =
       find_insertion_position storage (Signature.canonical f.signature)
     in
     FixSizeEntryReader.pipe_all_before storage.index_reader insertion_pos temp_oc;
-    output_index temp_oc heap_offset heap_length;
+    output_index temp_oc heap_offset;
     FixSizeEntryReader.pipe_all_after storage.index_reader insertion_pos temp_oc;
-    HeapReader.pipe_all storage.heap_reader temp_oc
+    Heap_Section.pipe_all storage.heap_reader temp_oc
   ;;
 
   external mv : string -> string -> unit = "mv"
@@ -532,12 +536,11 @@ module FileBasedSorted : S with type config = config_open_file = struct
     let storage = Storage.init ic in
     let header = storage.header in
     let repr, repr_length = cfunction_stored_representation f in
-    let index_entry =
-      { heap_offset = header.heap_size; heap_length = Int32.of_int repr_length }
-    in
-    Header.write (Header.one_more header repr_length) temp_oc;
-    insert storage temp_oc f index_entry;
-    Out_channel.output_string temp_oc repr;
+    Header.write
+      (Header.one_more header (repr_length + Heap_Section.var_len_size))
+      temp_oc;
+    insert storage temp_oc f header.heap_size;
+    Heap_Section.write_string temp_oc repr;
     Out_channel.flush temp_oc;
     mv temp_t t
   ;;
