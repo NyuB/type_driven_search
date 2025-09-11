@@ -237,8 +237,8 @@ module FixSizeEntryReader = struct
     buff
   ;;
 
-  let pipe_all_before t i oc =
-    In_channel.seek t.ic t.start_pos;
+  let pipe_all_between t low_inclusive high_exclusive oc =
+    In_channel.seek t.ic (offset t low_inclusive);
     let buff_size = 2048 in
     let buff = Bytes.make buff_size '\x00' in
     let rec loop to_write =
@@ -249,10 +249,11 @@ module FixSizeEntryReader = struct
         Out_channel.output oc buff 0 n;
         loop (Int64.sub to_write (itol n))
     in
-    let to_write = Int64.sub (offset t i) t.start_pos in
+    let to_write = Int64.sub (offset t high_exclusive) t.start_pos in
     loop to_write
   ;;
 
+  let pipe_all_before t i oc = pipe_all_between t 0 i oc
   let end_pos t = Int64.add t.start_pos (Int64.mul (itol t.count) (itol t.entry_size))
 
   let pipe_all_after t i oc =
@@ -671,21 +672,77 @@ module FileBasedSorted = struct
       if Tag.equal tag_at_pos tag then Some tag_offset else None)
   ;;
 
-  type tag_insertion_plan =
+  type tag_insertion =
     { insertion_position : int (** Index in the tag index *)
     ; heap_offset : int64 (** Offset in the tag heap *)
-    ; additional_heap_size : int64 (** Additional heap size required for insertion *)
+    ; heap_content : string option
     }
 
-  let plan_tag_insertion storage tag : tag_insertion_plan =
-    let insertion_position = find_tag_insertion_position storage tag in
-    match tag_already_at storage tag insertion_position with
-    | None ->
-      { insertion_position
-      ; heap_offset = Storage.next_tag_heap_offset storage
-      ; additional_heap_size = itol (String.length tag + Heap_Section.var_len_size)
-      }
-    | Some heap_offset -> { insertion_position; heap_offset; additional_heap_size = 0L }
+  type tag_insertion_plan =
+    { insertions : tag_insertion list
+    ; additional_heap_size : int64
+    ; additional_tag_count : int
+    }
+
+  let plan_tag_insertion (storage : Storage.t) (tags : Tag.t list) : tag_insertion_plan =
+    let start_heap_offset = Storage.next_tag_heap_offset storage in
+    let rec aux tag_insertions next_tag_heap_offset additional_tag_count = function
+      | [] ->
+        { insertions = List.rev tag_insertions
+        ; additional_heap_size = Int64.sub next_tag_heap_offset start_heap_offset
+        ; additional_tag_count
+        }
+      | tag :: rest ->
+        let insertion_position = find_tag_insertion_position storage tag in
+        (match tag_already_at storage tag insertion_position with
+         | None ->
+           let tag_insertion =
+             { insertion_position
+             ; heap_offset = next_tag_heap_offset
+             ; heap_content = Some tag
+             }
+           in
+           aux
+             (tag_insertion :: tag_insertions)
+             (Int64.add
+                next_tag_heap_offset
+                (itol (String.length tag + Heap_Section.var_len_size)))
+             (additional_tag_count + 1)
+             rest
+         | Some heap_offset ->
+           let tag_insertion = { insertion_position; heap_offset; heap_content = None } in
+           aux
+             (tag_insertion :: tag_insertions)
+             next_tag_heap_offset
+             additional_tag_count
+             rest)
+    in
+    aux [] start_heap_offset 0 (List.sort Tag.compare tags)
+  ;;
+
+  let execute_tag_insertion_plan (storage : Storage.t) { insertions; _ } oc =
+    let function_offset = Storage.next_heap_offset storage in
+    let last_insertion_index =
+      List.fold_left
+        (fun last_insertion_index (tag_insertion : tag_insertion) ->
+           FixSizeEntryReader.pipe_all_between
+             storage.tag_index_reader
+             last_insertion_index
+             tag_insertion.insertion_position
+             oc;
+           output_tag oc tag_insertion.heap_offset function_offset;
+           tag_insertion.insertion_position)
+        0
+        insertions
+    in
+    FixSizeEntryReader.pipe_all_after storage.tag_index_reader last_insertion_index oc;
+    Heap_Section.pipe_n storage.tag_heap_reader oc storage.header.tag_heap_size;
+    List.iter
+      (fun (tag_insertion : tag_insertion) ->
+         match tag_insertion.heap_content with
+         | None -> ()
+         | Some tag -> Heap_Section.write_string oc tag)
+      insertions
   ;;
 
   let insert (storage : Storage.t) temp_oc (f : Signature.CFunction.t) : unit =
@@ -693,11 +750,9 @@ module FileBasedSorted = struct
       find_insertion_position storage (Signature.canonical f.signature)
     in
     let return_tag = Tag.of_signature_return f.signature in
-    let tag_insertion_plan = plan_tag_insertion storage return_tag in
+    let tags = [ return_tag ] in
+    let tag_insertion_plan = plan_tag_insertion storage tags in
     let repr, repr_length = cfunction_stored_representation f in
-    let tag_already_there =
-      tag_insertion_plan.heap_offset < Storage.next_tag_heap_offset storage
-    in
     Header.write
       Header.
         { functions_count =
@@ -706,13 +761,8 @@ module FileBasedSorted = struct
             Int64.add
               storage.header.heap_size
               (itol (repr_length + Heap_Section.var_len_size))
-        ; tags_index_count =
-            storage.header.tags_index_count
-            + 1 (* We inserted a tag -> function association *)
-        ; tags_count =
-            (if tag_already_there
-             then storage.header.tags_count
-             else storage.header.tags_count + 1)
+        ; tags_index_count = storage.header.tags_index_count + List.length tags
+        ; tags_count = storage.header.tags_count + tag_insertion_plan.additional_tag_count
         ; tag_heap_size =
             Int64.add storage.header.tag_heap_size tag_insertion_plan.additional_heap_size
         }
@@ -722,17 +772,7 @@ module FileBasedSorted = struct
     FixSizeEntryReader.pipe_all_after storage.index_reader insertion_pos temp_oc;
     Heap_Section.pipe_n storage.heap_reader temp_oc storage.header.heap_size;
     Heap_Section.write_string temp_oc repr;
-    FixSizeEntryReader.pipe_all_before
-      storage.tag_index_reader
-      tag_insertion_plan.insertion_position
-      temp_oc;
-    output_tag temp_oc tag_insertion_plan.heap_offset (Storage.next_heap_offset storage);
-    FixSizeEntryReader.pipe_all_after
-      storage.tag_index_reader
-      tag_insertion_plan.insertion_position
-      temp_oc;
-    Heap_Section.pipe_n storage.tag_heap_reader temp_oc storage.header.tag_heap_size;
-    if not tag_already_there then Heap_Section.write_string temp_oc return_tag
+    execute_tag_insertion_plan storage tag_insertion_plan temp_oc
   ;;
 
   external mv : string -> string -> unit = "mv"

@@ -212,6 +212,21 @@ let test_get_respects_oracle (type i) (module I : Index.S with type t = i) (inde
 
 let make_query r p = Index.Query.condense_signature @@ Testability.make_signature r p
 
+let test_query_one_function (type i) (module I : Index.S with type t = i) (index : i) =
+  ( Printf.sprintf "'t()' yields the entry with return type 't' (%s)" I.id
+  , fun () ->
+      let fun_returning_t =
+        Signature.CFunction.{ name = "fa"; signature = Testability.make_signature "t" [] }
+      in
+      I.store index [ fun_returning_t ];
+      let results = I.query index (make_query "t" []) in
+      Alcotest.check
+        (Alcotest.list Testability.cfunction_testable)
+        "Expected the single function stored"
+        [ fun_returning_t ]
+        results )
+;;
+
 let test_query_void_params (type i) (module I : Index.S with type t = i) (index : i) =
   ( Printf.sprintf "'t()' yields all entries with return type 't' (%s)" I.id
   , fun () ->
@@ -342,7 +357,12 @@ let get_store_tests =
 ;;
 
 let query_tests =
-  "Query", [ test_query_void_params; test_query_one_param; test_query_respects_oracle ]
+  ( "Query"
+  , [ test_query_one_function
+    ; test_query_void_params
+    ; test_query_one_param
+    ; test_query_respects_oracle
+    ] )
 ;;
 
 let test (name, exec) = Alcotest.test_case name `Quick exec
