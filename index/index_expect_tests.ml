@@ -24,22 +24,52 @@ let%expect_test "Query building" =
 
 let temp_index_file () = Filename.temp_file ~temp_dir:"." "temp" ".txt"
 
-let%expect_test "debug" =
+let%expect_test "inspect internal index layout" =
   let index = Index.FileBasedSorted.init { mode = Create; file = temp_index_file () } in
   let shared_signature = Signature.parse "int (int,int)" |> Option.get in
   let fadd = Signature.CFunction.{ name = "add"; signature = shared_signature }
-  and fmul = Signature.CFunction.{ name = "mul"; signature = shared_signature }
-  and fmain =
-    Signature.CFunction.
-      { name = "main"; signature = Signature.parse "int (int, char**)" |> Option.get }
-  in
-  Index.FileBasedSorted.store index [ fmain ];
+  and fmul = Signature.CFunction.{ name = "mul"; signature = shared_signature } in
   Index.FileBasedSorted.store index [ fadd ];
   Index.FileBasedSorted.store index [ fmul ];
-  let back =
-    Index.FileBasedSorted.get index shared_signature
-    |> List.sort Signature.CFunction.compare
+  List.iter print_endline (Index.FileBasedSorted.repr_layout index);
+  [%expect
+    {|
+         ||-----
+    [0000]| 21 // int mul(int, int)
+    [0001]| 0 // int add(int, int)
+         ||-----
+         ||[0000](0000)<0017>add:int (int,int)
+         ||[0001](0021)<0017>mul:int (int,int)
+         ||-----
+    [0000]| 0 21 // r:int mul:int (int,int)
+    [0001]| 0 0 // r:int add:int (int,int)
+         ||-----
+         ||[0000](0000)<0005>r:int
+         ||-----
+    |}];
+  let f_void =
+    Signature.CFunction.
+      { name = "write"; signature = Signature.parse "void(int, char**)" |> Option.get }
   in
-  print_endline (back |> List.map Signature.CFunction.string_of_t |> String.concat ":");
-  [%expect {| int add(int, int):int mul(int, int) |}]
+  Index.FileBasedSorted.store index [ f_void ];
+  List.iter print_endline (Index.FileBasedSorted.repr_layout index);
+  [%expect
+    {|
+         ||-----
+    [0000]| 21 // int mul(int, int)
+    [0001]| 0 // int add(int, int)
+    [0002]| 42 // void write(int, char**)
+         ||-----
+         ||[0000](0000)<0017>add:int (int,int)
+         ||[0001](0021)<0017>mul:int (int,int)
+         ||[0002](0042)<0023>write:void (int,char**)
+         ||-----
+    [0000]| 0 21 // r:int mul:int (int,int)
+    [0001]| 0 0 // r:int add:int (int,int)
+    [0002]| 9 42 // r:void write:void (int,char**)
+         ||-----
+         ||[0000](0000)<0005>r:int
+         ||[0001](0009)<0006>r:void
+         ||-----
+    |}]
 ;;

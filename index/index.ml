@@ -283,23 +283,46 @@ module Heap_Section = struct
     pipe_n t.ic oc byte_count
   ;;
 
-  let read_string t (heap_offset : heap_offset) =
+  let read_varlen_string t heap_offset =
     In_channel.seek t.ic (Int64.add t.start_pos heap_offset);
     let buff = Bytes.create var_len_size in
     In_channel.really_input t.ic buff 0 var_len_size
     |> or_failwith (Printf.sprintf "Unable to read length at heap offset %Ld" heap_offset);
-    let heap_len = Bytes.get_int32_le buff 0 in
-    In_channel.really_input_string t.ic (Int32.to_int heap_len)
-    |> or_failwith
-         (Printf.sprintf "Invalid heap read range at index %Ld:%ld" heap_offset heap_len)
+    let var_len = Bytes.get_int32_le buff 0 in
+    let str =
+      In_channel.really_input_string t.ic (Int32.to_int var_len)
+      |> or_failwith
+           (Printf.sprintf "Invalid heap read range at (%Ld)<%ld>" heap_offset var_len)
+    in
+    var_len, str
   ;;
 
-  (** [write_string oc s] writes [s] into [oc] prefied by it's length as a 32 bits integer *)
+  let read_string t (heap_offset : heap_offset) =
+    let _, s = read_varlen_string t heap_offset in
+    s
+  ;;
+
+  (** [write_string oc s] writes [s] into [oc] prefixed by it's length as a 32 bits integer *)
   let write_string oc s =
     let buff = Bytes.create var_len_size in
     Bytes.set_int32_le buff 0 (Int32.of_int @@ String.length s);
     Out_channel.output oc buff 0 var_len_size;
     Out_channel.output_string oc s
+  ;;
+
+  let layout t count =
+    let rec aux acc t n offset =
+      if n >= count
+      then List.rev acc
+      else (
+        let len, str = read_varlen_string t offset in
+        let next_offset =
+          Int64.add offset (Int64.add (itol var_len_size) (Int64.of_int32 len))
+        in
+        let repr = Printf.sprintf "[%04d](%04Ld)<%04ld>%s" n offset len str in
+        aux (repr :: acc) t (n + 1) next_offset)
+    in
+    aux [] t 0 0L
   ;;
 end
 
@@ -368,30 +391,40 @@ end
 
 module Header = struct
   type t =
-    { count : int
+    { functions_count : int
     ; heap_size : int64
-    ; tag_count : int
+    ; tags_index_count : int
+    ; tags_count : int
     ; tag_heap_size : int64
     }
 
   let string_of_t
-        { count : int; heap_size : int64; tag_count : int; tag_heap_size : int64 }
+        { functions_count : int
+        ; heap_size : int64
+        ; tags_index_count : int
+        ; tags_count
+        ; tag_heap_size : int64
+        }
     : string
     =
     Printf.sprintf
-      "{ count = %d; heap_size = %Ld; tag_count : = %d; tag_heap_size = %Ld }"
-      count
+      "{ functions_count = %d; heap_size = %Ld; tags_index_count = %d; tags_count = %d; \
+       tag_heap_size = %Ld }"
+      functions_count
       heap_size
-      tag_count
+      tags_index_count
+      tags_count
       tag_heap_size
   ;;
 
   let write t oc =
-    Out_channel.output_string oc (string_of_int t.count);
+    Out_channel.output_string oc (string_of_int t.functions_count);
     Out_channel.output_char oc ':';
     Out_channel.output_string oc (Int64.to_string t.heap_size);
     Out_channel.output_char oc ':';
-    Out_channel.output_string oc (string_of_int t.tag_count);
+    Out_channel.output_string oc (string_of_int t.tags_index_count);
+    Out_channel.output_char oc ':';
+    Out_channel.output_string oc (string_of_int t.tags_count);
     Out_channel.output_char oc ':';
     Out_channel.output_string oc (Int64.to_string t.tag_heap_size);
     Out_channel.output_char oc '\n'
@@ -403,10 +436,11 @@ module Header = struct
       |> or_failwith "Could not read header line"
       |> String.split_on_char ':'
     in
-    let count =
+    let functions_count =
       List.nth_opt metadata 0
       |> fun opt ->
-      Option.bind opt int_of_string_opt |> or_failwith "Could not read count from header"
+      Option.bind opt int_of_string_opt
+      |> or_failwith "Could not read functions count from header"
     in
     let heap_size =
       List.nth_opt metadata 1
@@ -414,21 +448,35 @@ module Header = struct
       Option.bind opt Int64.of_string_opt
       |> or_failwith "Could not read heap size from header"
     in
-    let tag_count =
+    let tags_index_count =
       List.nth_opt metadata 2
       |> fun opt ->
-      Option.bind opt int_of_string_opt |> or_failwith "Could not read count from header"
+      Option.bind opt int_of_string_opt
+      |> or_failwith "Could not read tags index count from header"
     in
-    let tag_heap_size =
+    let tags_count =
       List.nth_opt metadata 3
       |> fun opt ->
-      Option.bind opt Int64.of_string_opt
-      |> or_failwith "Could not read heap size from header"
+      Option.bind opt int_of_string_opt
+      |> or_failwith "Could not read tags count from header"
     in
-    { count; heap_size; tag_count; tag_heap_size }
+    let tag_heap_size =
+      List.nth_opt metadata 4
+      |> fun opt ->
+      Option.bind opt Int64.of_string_opt
+      |> or_failwith "Could not read tag heap size from header"
+    in
+    { functions_count; heap_size; tags_count; tags_index_count; tag_heap_size }
   ;;
 
-  let init = { count = 0; heap_size = 0L; tag_count = 0; tag_heap_size = 0L }
+  let init =
+    { functions_count = 0
+    ; heap_size = 0L
+    ; tags_index_count = 0
+    ; tags_count = 0
+    ; tag_heap_size = 0L
+    }
+  ;;
 end
 
 (**
@@ -436,8 +484,9 @@ end
                   ||======
 Header            ||count;heap_size;tag_count
                   ||======
-Index          ^  ||<heap-offset(int64)> --------------
-               |  ||...                                |
+Function index    ||<heap-offset(int64)> --------------
+(sorted by sig)   ||...                                |
+               ^  ||...                                |
         count  |  ||...                                |
           x    |  ||... ----------------------         |
        (8 + 4) |  ||...                       |        |
@@ -445,20 +494,19 @@ Index          ^  ||<heap-offset(int64)> --------------
                |  ||...                       |        |
                |  ||...                       |        |
                v  ||...                       |        |
-                  ||======                    |        |
-Tag index         || <heap_offset><tag_heap_offset>    |
-(TODO)            ||...                       |        |
-                  ||...                       |        |
-                  ||...                       |        |
                   ||======                    v        |
 Heap           ^  ||<entry 1 (var size)> <entry 2>     |
                |  ||... <entry n (heap-length)> <------/
-     heap_size |  ||... ... ... ...
-               |  ||... ...
-               v  ||... <entry count>
-                  ||=====
-Tag heap          || <tag 1 var_size>   
-(TOOD)
+     heap_size |  ||... ... ... ...         ^
+               |  ||... ...                 | 
+               v  ||... <entry count>       | 
+                  ||=====       /-----------
+                  ||======      |
+Tag index         || <heap_offset><tag_heap_offset>
+(sorted by tag)   ||...                       | 
+                  ||...                       |
+                  ||..                        |
+Tag heap          || <tag 1 var_size>   <---- /
 v}
 Where:
 - heap_offset, identify an offset from the start of the heap
@@ -491,7 +539,7 @@ module Storage = struct
       FixSizeEntryReader.init
         ic
         ~entry_size
-        ~count:header.count
+        ~count:header.functions_count
         ~start_pos:(In_channel.pos ic)
     in
     let heap_reader = Heap_Section.init ic (FixSizeEntryReader.end_pos index_reader) in
@@ -499,7 +547,7 @@ module Storage = struct
       FixSizeEntryReader.init
         ic
         ~entry_size:tag_entry_size
-        ~count:header.tag_count
+        ~count:header.tags_index_count
         ~start_pos:(Int64.add heap_reader.start_pos header.heap_size)
     in
     let tag_heap_reader =
@@ -527,7 +575,7 @@ module Storage = struct
   ;;
 end
 
-module FileBasedSorted : S with type config = config_open_file = struct
+module FileBasedSorted = struct
   type t = string
   type config = config_open_file
 
@@ -594,7 +642,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
   ;;
 
   let find_insertion_position (storage : Storage.t) queried_signature =
-    Binary_search.insertion_index storage.header.count (fun i ->
+    Binary_search.insertion_index storage.header.functions_count (fun i ->
       let f_at_i =
         input_stored_function storage i
         |> Signature.CFunction.signature
@@ -610,8 +658,34 @@ module FileBasedSorted : S with type config = config_open_file = struct
   ;;
 
   let find_tag_insertion_position (storage : Storage.t) tag =
-    Binary_search.insertion_index storage.header.tag_count (fun i ->
+    Binary_search.insertion_index storage.header.tags_index_count (fun i ->
       Tag.compare (input_stored_tag storage i) tag)
+  ;;
+
+  let tag_already_at (storage : Storage.t) tag tag_insertion_pos =
+    if tag_insertion_pos >= storage.header.tags_index_count
+    then None
+    else (
+      let tag_offset, _ = input_tag storage tag_insertion_pos in
+      let tag_at_pos = Heap_Section.read_string storage.tag_heap_reader tag_offset in
+      if Tag.equal tag_at_pos tag then Some tag_offset else None)
+  ;;
+
+  type tag_insertion_plan =
+    { insertion_position : int (** Index in the tag index *)
+    ; heap_offset : int64 (** Offset in the tag heap *)
+    ; additional_heap_size : int64 (** Additional heap size required for insertion *)
+    }
+
+  let plan_tag_insertion storage tag : tag_insertion_plan =
+    let insertion_position = find_tag_insertion_position storage tag in
+    match tag_already_at storage tag insertion_position with
+    | None ->
+      { insertion_position
+      ; heap_offset = Storage.next_tag_heap_offset storage
+      ; additional_heap_size = itol (String.length tag + Heap_Section.var_len_size)
+      }
+    | Some heap_offset -> { insertion_position; heap_offset; additional_heap_size = 0L }
   ;;
 
   let insert (storage : Storage.t) temp_oc (f : Signature.CFunction.t) : unit =
@@ -619,26 +693,28 @@ module FileBasedSorted : S with type config = config_open_file = struct
       find_insertion_position storage (Signature.canonical f.signature)
     in
     let return_tag = Tag.of_signature_return f.signature in
-    let tag_insertion_pos = find_tag_insertion_position storage return_tag in
-    let tag_already_there =
-      tag_insertion_pos < storage.header.tag_count
-      && Tag.equal (input_stored_tag storage tag_insertion_pos) return_tag
-    in
+    let tag_insertion_plan = plan_tag_insertion storage return_tag in
     let repr, repr_length = cfunction_stored_representation f in
+    let tag_already_there =
+      tag_insertion_plan.heap_offset < Storage.next_tag_heap_offset storage
+    in
     Header.write
       Header.
-        { count = storage.header.count + 1 (* We inserted a function *)
+        { functions_count =
+            storage.header.functions_count + 1 (* We inserted a function *)
         ; heap_size =
             Int64.add
               storage.header.heap_size
-              (Int64.of_int (repr_length + Heap_Section.var_len_size))
-        ; tag_count = storage.header.tag_count + 1
+              (itol (repr_length + Heap_Section.var_len_size))
+        ; tags_index_count =
+            storage.header.tags_index_count
+            + 1 (* We inserted a tag -> function association *)
+        ; tags_count =
+            (if tag_already_there
+             then storage.header.tags_count
+             else storage.header.tags_count + 1)
         ; tag_heap_size =
-            (Int64.add storage.header.tag_heap_size
-             @@
-             if tag_already_there
-             then 0L
-             else Int64.of_int (Heap_Section.var_len_size + String.length return_tag))
+            Int64.add storage.header.tag_heap_size tag_insertion_plan.additional_heap_size
         }
       temp_oc;
     FixSizeEntryReader.pipe_all_before storage.index_reader insertion_pos temp_oc;
@@ -646,21 +722,67 @@ module FileBasedSorted : S with type config = config_open_file = struct
     FixSizeEntryReader.pipe_all_after storage.index_reader insertion_pos temp_oc;
     Heap_Section.pipe_n storage.heap_reader temp_oc storage.header.heap_size;
     Heap_Section.write_string temp_oc repr;
-    FixSizeEntryReader.pipe_all_before storage.tag_index_reader tag_insertion_pos temp_oc;
-    output_tag
-      temp_oc
-      (if tag_already_there
-       then (
-         let tag_offset, _ = input_tag storage tag_insertion_pos in
-         tag_offset)
-       else Storage.next_tag_heap_offset storage)
-      (Storage.next_heap_offset storage);
-    FixSizeEntryReader.pipe_all_after storage.tag_index_reader tag_insertion_pos temp_oc;
+    FixSizeEntryReader.pipe_all_before
+      storage.tag_index_reader
+      tag_insertion_plan.insertion_position
+      temp_oc;
+    output_tag temp_oc tag_insertion_plan.heap_offset (Storage.next_heap_offset storage);
+    FixSizeEntryReader.pipe_all_after
+      storage.tag_index_reader
+      tag_insertion_plan.insertion_position
+      temp_oc;
     Heap_Section.pipe_n storage.tag_heap_reader temp_oc storage.header.tag_heap_size;
     if not tag_already_there then Heap_Section.write_string temp_oc return_tag
   ;;
 
   external mv : string -> string -> unit = "mv"
+
+  let repr_storage_layout (storage : Storage.t) =
+    let functions =
+      List.init storage.header.functions_count (fun i ->
+        Printf.sprintf
+          "[%04d]| %Ld // %s"
+          i
+          (input_function_offset storage i)
+          (input_stored_function storage i |> Signature.CFunction.string_of_t))
+    in
+    let functions_heap =
+      Heap_Section.layout storage.heap_reader storage.header.functions_count
+      |> List.map (String.cat "     ||")
+    in
+    let tags_index =
+      List.init storage.header.tags_index_count (fun i ->
+        let tag_offset, function_offset = input_tag storage i in
+        Printf.sprintf
+          "[%04d]| %Ld %Ld // %s %s"
+          i
+          tag_offset
+          function_offset
+          (Heap_Section.read_string storage.tag_heap_reader tag_offset)
+          (Heap_Section.read_string storage.heap_reader function_offset))
+    in
+    let tag_heap =
+      Heap_Section.layout storage.tag_heap_reader storage.header.tags_count
+      |> List.map (String.cat "     ||")
+    in
+    let separator = "     ||-----" in
+    [ separator ]
+    @ functions
+    @ [ separator ]
+    @ functions_heap
+    @ [ separator ]
+    @ tags_index
+    @ [ separator ]
+    @ tag_heap
+    @ [ separator ]
+  ;;
+
+  let repr_layout t =
+    with_file_r t
+    @@ fun ic ->
+    let storage = Storage.init ic in
+    repr_storage_layout storage
+  ;;
 
   let store_one t f : unit =
     let temp_t, temp_oc = temp_file_for t in
@@ -677,7 +799,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
   let store t list = List.iter (store_one t) list
 
   let find_signature_position (storage : Storage.t) signature =
-    Binary_search.index storage.header.count (fun i ->
+    Binary_search.index storage.header.functions_count (fun i ->
       let f_at_i =
         input_stored_function storage i
         |> Signature.CFunction.signature
@@ -694,14 +816,14 @@ module FileBasedSorted : S with type config = config_open_file = struct
       | None -> []
       | Some position ->
         all_around_position
-          ~count:storage.header.count
+          ~count:storage.header.functions_count
           ~position
           (input_stored_function storage)
           (fun f -> Signature.equal (Signature.canonical f.signature) canonical))
   ;;
 
   let find_return_type_position (storage : Storage.t) tag =
-    Binary_search.index storage.header.tag_count (fun i ->
+    Binary_search.index storage.header.tags_index_count (fun i ->
       let t = input_stored_tag storage i in
       Tag.compare t tag)
   ;;
@@ -714,7 +836,7 @@ module FileBasedSorted : S with type config = config_open_file = struct
       | None -> []
       | Some position ->
         all_around_position
-          ~count:storage.header.tag_count
+          ~count:storage.header.tags_index_count
           ~position
           (fun i -> input_tag storage i)
           (fun (tag_offset, _) ->

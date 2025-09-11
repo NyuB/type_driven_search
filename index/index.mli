@@ -60,4 +60,9 @@ type config_open_file =
 module FileBased : S with type config = config_open_file
 
 (** Stores c-functions in a file, sorting them to improve query performance at the cost of storage performance *)
-module FileBasedSorted : S with type config = config_open_file
+module FileBasedSorted : sig
+  include S with type config = config_open_file
+
+  (** A textual representation of the current index state *)
+  val repr_layout : t -> string list
+end
