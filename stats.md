@@ -55,3 +55,11 @@
 |           InMemory|  85.|    5.| 3660.|
 |          FileBased|   3.|31634.|36173.|
 |    FileBasedSorted|6948.|  286.|10547.|
+
+## Store all tags
+
+|Index Type \ Op(ms)|   Store|   Get|   Query|
+|-------------------|--------|------|--------|
+|           InMemory|     83.|    6.|   3850.|
+|          FileBased|      5.|34090.|  36363.|
+|    FileBasedSorted|🐌11993.|  306.|🐌47120.|

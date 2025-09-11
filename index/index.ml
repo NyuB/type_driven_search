@@ -71,12 +71,29 @@ module Tag = struct
   type t = string
 
   let of_return return = Printf.sprintf "r:%s" @@ Signature.Ctype.string_of_t return
-  let _of_query_return (query : Query.t) : t = of_return query.return
-  let of_signature_return (signature : Signature.t) : t = of_return signature.return
 
-  let _of_query_param (p : Query.Param.t) : t =
+  let of_param n ctype =
     (* FIXME "%02d" keeps 2 digits handle > 99 (!) parameters or check C spec for the max ??? *)
-    Printf.sprintf "p:%02d:%s" p.count (Signature.Ctype.string_of_t p.ctype)
+    Printf.sprintf "p:%02d:%s" n (Signature.Ctype.string_of_t ctype)
+  ;;
+
+  let of_query_return (query : Query.t) : t = of_return query.return
+  let of_query_param (p : Query.Param.t) : t = of_param p.count p.ctype
+  let of_query (q : Query.t) = [ of_query_return q ] @ List.map of_query_param q.params
+
+  let explode_query_param (param : Query.Param.t) =
+    let rec aux acc (param : Query.Param.t) =
+      match param.count with
+      | 0 -> acc
+      | n -> aux (of_query_param param :: acc) { param with count = n - 1 }
+    in
+    aux [] param
+  ;;
+
+  let of_signature s =
+    let query = Query.condense_signature s in
+    [ of_query_return query ]
+    @ (query.params |> List.map explode_query_param |> List.flatten)
   ;;
 
   let compare = String.compare
@@ -238,7 +255,8 @@ module FixSizeEntryReader = struct
   ;;
 
   let pipe_all_between t low_inclusive high_exclusive oc =
-    In_channel.seek t.ic (offset t low_inclusive);
+    let offset_low = offset t low_inclusive in
+    In_channel.seek t.ic offset_low;
     let buff_size = 2048 in
     let buff = Bytes.make buff_size '\x00' in
     let rec loop to_write =
@@ -249,7 +267,7 @@ module FixSizeEntryReader = struct
         Out_channel.output oc buff 0 n;
         loop (Int64.sub to_write (itol n))
     in
-    let to_write = Int64.sub (offset t high_exclusive) t.start_pos in
+    let to_write = Int64.sub (offset t high_exclusive) offset_low in
     loop to_write
   ;;
 
@@ -749,8 +767,7 @@ module FileBasedSorted = struct
     let insertion_pos =
       find_insertion_position storage (Signature.canonical f.signature)
     in
-    let return_tag = Tag.of_signature_return f.signature in
-    let tags = [ return_tag ] in
+    let tags = Tag.of_signature f.signature in
     let tag_insertion_plan = plan_tag_insertion storage tags in
     let repr, repr_length = cfunction_stored_representation f in
     Header.write
@@ -862,28 +879,47 @@ module FileBasedSorted = struct
           (fun f -> Signature.equal (Signature.canonical f.signature) canonical))
   ;;
 
-  let find_return_type_position (storage : Storage.t) tag =
+  let find_tag_position (storage : Storage.t) tag =
     Binary_search.index storage.header.tags_index_count (fun i ->
       let t = input_stored_tag storage i in
       Tag.compare t tag)
   ;;
 
+  module FunctionOffsetSet = Set.Make (Int64)
+
   let query t (q : Query.t) =
     with_file_r t (fun ic ->
       let storage = Storage.init ic in
-      let return_tag = Tag._of_query_return q in
-      match find_return_type_position storage return_tag with
-      | None -> []
-      | Some position ->
-        all_around_position
-          ~count:storage.header.tags_index_count
-          ~position
-          (fun i -> input_tag storage i)
-          (fun (tag_offset, _) ->
-             let t = Heap_Section.read_string storage.tag_heap_reader tag_offset in
-             Tag.equal t return_tag)
-        |> List.map (fun (_, f_offset) ->
-          Heap_Section.read_string storage.heap_reader f_offset |> FunctionRepr.parse)
-        |> List.filter (matches_query q))
+      let tags = Tag.of_query q in
+      let rec aux current_set = function
+        | [] ->
+          current_set
+          |> Option.value ~default:FunctionOffsetSet.empty
+          |> FunctionOffsetSet.to_list
+          |> List.map (fun offset ->
+            Heap_Section.read_string storage.heap_reader offset |> FunctionRepr.parse)
+        | tag :: rest ->
+          (match find_tag_position storage tag with
+           | None -> []
+           | Some position ->
+             let all_matching_function_offsets =
+               all_around_position
+                 ~count:storage.header.tags_index_count
+                 ~position
+                 (fun i -> input_tag storage i)
+                 (fun (tag_offset, _) ->
+                    let t = Heap_Section.read_string storage.tag_heap_reader tag_offset in
+                    Tag.equal t tag)
+               |> List.map (fun (_, f_offset) -> f_offset)
+               |> FunctionOffsetSet.of_list
+             in
+             let next_set =
+               match current_set with
+               | None -> all_matching_function_offsets
+               | Some set -> FunctionOffsetSet.inter set all_matching_function_offsets
+             in
+             aux (Some next_set) rest)
+      in
+      aux None tags)
   ;;
 end

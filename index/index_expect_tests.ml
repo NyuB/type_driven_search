@@ -41,10 +41,17 @@ let%expect_test "inspect internal index layout" =
          ||[0000](0000)<0017>add:int (int,int)
          ||[0001](0021)<0017>mul:int (int,int)
          ||-----
-    [0000]| 0 21 // r:int mul:int (int,int)
-    [0001]| 0 0 // r:int add:int (int,int)
+    [0000]| 0 21 // p:01:int mul:int (int,int)
+    [0001]| 0 0 // p:01:int add:int (int,int)
+    [0002]| 12 21 // p:02:int mul:int (int,int)
+    [0003]| 12 0 // p:02:int add:int (int,int)
+    [0004]| 24 0 // r:int add:int (int,int)
+    [0005]| 33 21 // r:int mul:int (int,int)
          ||-----
-         ||[0000](0000)<0005>r:int
+         ||[0000](0000)<0008>p:01:int
+         ||[0001](0012)<0008>p:02:int
+         ||[0002](0024)<0005>r:int
+         ||[0003](0033)<0005>r:int
          ||-----
     |}];
   let f_void =
@@ -64,12 +71,22 @@ let%expect_test "inspect internal index layout" =
          ||[0001](0021)<0017>mul:int (int,int)
          ||[0002](0042)<0023>write:void (int,char**)
          ||-----
-    [0000]| 0 21 // r:int mul:int (int,int)
-    [0001]| 0 0 // r:int add:int (int,int)
-    [0002]| 9 42 // r:void write:void (int,char**)
+    [0000]| 42 42 // p:01:char** write:void (int,char**)
+    [0001]| 0 42 // p:01:int write:void (int,char**)
+    [0002]| 0 21 // p:01:int mul:int (int,int)
+    [0003]| 0 0 // p:01:int add:int (int,int)
+    [0004]| 12 21 // p:02:int mul:int (int,int)
+    [0005]| 12 0 // p:02:int add:int (int,int)
+    [0006]| 24 0 // r:int add:int (int,int)
+    [0007]| 33 21 // r:int mul:int (int,int)
+    [0008]| 57 42 // r:void write:void (int,char**)
          ||-----
-         ||[0000](0000)<0005>r:int
-         ||[0001](0009)<0006>r:void
+         ||[0000](0000)<0008>p:01:int
+         ||[0001](0012)<0008>p:02:int
+         ||[0002](0024)<0005>r:int
+         ||[0003](0033)<0005>r:int
+         ||[0004](0042)<0011>p:01:char**
+         ||[0005](0057)<0006>r:void
          ||-----
     |}]
 ;;
