@@ -887,6 +887,27 @@ module FileBasedSorted = struct
 
   module FunctionOffsetSet = Set.Make (Int64)
 
+  let inter_or_start_with set = function
+    | None -> set
+    | Some previous_set -> FunctionOffsetSet.inter set previous_set
+  ;;
+
+  let all_functions_tagged_with (storage : Storage.t) tag =
+    match find_tag_position storage tag with
+    | None -> FunctionOffsetSet.empty
+    | Some position ->
+      all_around_position
+        ~count:storage.header.tags_index_count
+        ~position
+        (fun i -> input_tag storage i)
+        (fun (tag_offset, _) ->
+           let t = Heap_Section.read_string storage.tag_heap_reader tag_offset in
+           Tag.equal t tag)
+      |> List.fold_left
+           (fun set (_, f_offset) -> FunctionOffsetSet.add f_offset set)
+           FunctionOffsetSet.empty
+  ;;
+
   let query t (q : Query.t) =
     with_file_r t (fun ic ->
       let storage = Storage.init ic in
@@ -899,26 +920,10 @@ module FileBasedSorted = struct
           |> List.map (fun offset ->
             Heap_Section.read_string storage.heap_reader offset |> FunctionRepr.parse)
         | tag :: rest ->
-          (match find_tag_position storage tag with
-           | None -> []
-           | Some position ->
-             let all_matching_function_offsets =
-               all_around_position
-                 ~count:storage.header.tags_index_count
-                 ~position
-                 (fun i -> input_tag storage i)
-                 (fun (tag_offset, _) ->
-                    let t = Heap_Section.read_string storage.tag_heap_reader tag_offset in
-                    Tag.equal t tag)
-               |> List.map (fun (_, f_offset) -> f_offset)
-               |> FunctionOffsetSet.of_list
-             in
-             let next_set =
-               match current_set with
-               | None -> all_matching_function_offsets
-               | Some set -> FunctionOffsetSet.inter set all_matching_function_offsets
-             in
-             aux (Some next_set) rest)
+          let matching = all_functions_tagged_with storage tag in
+          if FunctionOffsetSet.is_empty matching
+          then []
+          else aux (Option.some @@ inter_or_start_with matching current_set) rest
       in
       aux None tags)
   ;;
