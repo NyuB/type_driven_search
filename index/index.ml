@@ -912,6 +912,7 @@ module FileBasedSorted = struct
     with_file_r t (fun ic ->
       let storage = Storage.init ic in
       let tags = Tag.of_query q in
+      let early_cut_on = storage.header.functions_count / 10 in
       let rec aux current_set = function
         | [] ->
           current_set
@@ -921,8 +922,21 @@ module FileBasedSorted = struct
             Heap_Section.read_string storage.heap_reader offset |> FunctionRepr.parse)
         | tag :: rest ->
           let matching = all_functions_tagged_with storage tag in
-          if FunctionOffsetSet.is_empty matching
+          let next = inter_or_start_with matching current_set in
+          if FunctionOffsetSet.is_empty next
           then []
+          else if FunctionOffsetSet.cardinal next < early_cut_on
+          then
+            (* Stop searching by tag and just scan linearly all functions *)
+            FunctionOffsetSet.fold
+              (fun offset acc ->
+                 let f =
+                   Heap_Section.read_string storage.heap_reader offset
+                   |> FunctionRepr.parse
+                 in
+                 if matches_query q f then f :: acc else acc)
+              next
+              []
           else aux (Option.some @@ inter_or_start_with matching current_set) rest
       in
       aux None tags)
