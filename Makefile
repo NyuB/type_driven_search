@@ -33,3 +33,9 @@ benchmark:
 	echo "## Last benchmark" >> stats.md
 	echo "" >> stats.md
 	dune exec bin/benchmark.exe >> stats.md
+
+docker-build: Dockerfile
+	docker build -t tds .
+
+docker-shell:
+	docker run -it --rm --entrypoint bash -v "$$(pwd)/test_resources:/app/mount" tds
