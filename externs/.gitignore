@@ -1,4 +1,9 @@
 *.o
 *.a
 *.so
-test_fs
+*.sqlite
+fs_test
+sqlite_test
+
+# Download this from sqlite3 website
+sqlite3/
