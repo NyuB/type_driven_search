@@ -7,3 +7,7 @@ sqlite_test
 
 # Download this from sqlite3 website
 sqlite3/
+
+# clangd
+compile_commands.json
+.cache

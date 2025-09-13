@@ -66,3 +66,8 @@ module FileBasedSorted : sig
   (** A textual representation of the current index state *)
   val repr_layout : t -> string list
 end
+
+(** Stores c-functions and signature as an sqlite database *)
+module SqliteBased : sig
+  include S with type config = config_open_file
+end

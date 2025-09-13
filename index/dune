@@ -3,7 +3,7 @@
  (name index)
  (modules index)
  (libraries binary_search compare signature)
- (foreign_archives ../fs))
+ (foreign_archives ../fs ../camlite))
 
 (library
  (name binary_search)

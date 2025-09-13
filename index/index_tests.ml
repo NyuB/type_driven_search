@@ -342,6 +342,19 @@ let test_uber_function (type i) (module I : Index.S with type t = i) (index : i)
         back )
 ;;
 
+let test_sqlite_open temp_file =
+  ( "Test intializing a Sqlite-based index"
+  , fun () ->
+      let file = temp_file () in
+      Sys.remove file (* Ensure not existing *);
+      let _ = Index.SqliteBased.init Index.{ file; mode = Create } in
+      Alcotest.check
+        Alcotest.bool
+        "Expected the sqlite db to be created"
+        true
+        (Sys.file_exists file) )
+;;
+
 let get_store_tests =
   ( "Store/Get"
   , [ test_store_get_single
@@ -415,5 +428,6 @@ let () =
            (fun () ->
               Index.FileBasedSorted.init { file = temp_index_file (); mode = Create })
            query_tests
+       ; "Sqlite", [ test_sqlite_open temp_index_file ]
        ]
 ;;

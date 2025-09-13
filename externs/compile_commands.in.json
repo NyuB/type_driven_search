@@ -1,0 +1,7 @@
+[
+    {
+        "directory": "@@CURDIR@@",
+        "file":"camlite.c",
+        "arguments": ["@@CC@@", "-I", "@@OCAMLC_WHERE@@", "-c", "-o", "camlite.o"]
+    }
+]

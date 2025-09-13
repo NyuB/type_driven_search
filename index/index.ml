@@ -942,3 +942,19 @@ module FileBasedSorted = struct
       aux None tags)
   ;;
 end
+
+module SqliteBased : S with type config = config_open_file = struct
+  (** sqlite3 db connection *)
+  type t
+
+  let id = "SqliteBased"
+
+  type config = config_open_file
+
+  external sqlite3_open : string -> t = "caml_sqlite3_open"
+
+  let init (config : config) = sqlite3_open config.file
+  let store _ _ = failwith "Unsupported operation"
+  let get _ _ = failwith "Unsupported operation"
+  let query _ _ = failwith "Unsupported operation"
+end
