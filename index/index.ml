@@ -963,7 +963,7 @@ module SqliteBased : S with type config = config_open_file = struct
       let t = sqlite3_open config.file in
       sqlite3_exec
         t
-        "create table functions(id integer primary key, name varchar(500));"
+        "create table functions(id integer primary key, repr varchar(500));"
         ignore;
       t
   ;;
@@ -974,13 +974,13 @@ module SqliteBased : S with type config = config_open_file = struct
       |> List.map (fun f -> Printf.sprintf "('%s')" (FunctionRepr.format f))
       |> String.concat ","
     in
-    let insert = Printf.sprintf "insert into functions (name) values %s;" insert_values in
+    let insert = Printf.sprintf "insert into functions (repr) values %s;" insert_values in
     sqlite3_exec t insert ignore
   ;;
 
   let get t signature =
     let signature = Signature.canonical signature in
-    let select = "select name from functions;" in
+    let select = "select repr from functions;" in
     let result = ref [] in
     let append =
       fun f ->
@@ -994,7 +994,7 @@ module SqliteBased : S with type config = config_open_file = struct
   ;;
 
   let query t query =
-    let select = "select name from functions;" in
+    let select = "select repr from functions;" in
     let result = ref [] in
     sqlite3_exec t select (fun f ->
       let parsed = FunctionRepr.parse f in
