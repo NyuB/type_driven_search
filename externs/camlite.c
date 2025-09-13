@@ -1,3 +1,4 @@
+#include "caml/misc.h"
 #include "sqlite3/sqlite3.h"
 
 #include <caml/alloc.h>
@@ -76,4 +77,10 @@ CAMLprim value caml_sqlite3_exec(value caml_sqlite3_db_connection,
     return err;
   }
   CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_sqlite3_last_row_id(value caml_sqlite3_db_connection) {
+  CAMLparam1(caml_sqlite3_db_connection);
+  sqlite3 *db = *(sqlite3 **)Data_custom_val(caml_sqlite3_db_connection);
+  CAMLreturn(caml_copy_int64(sqlite3_last_insert_rowid(db)));
 }

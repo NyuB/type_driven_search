@@ -1,7 +1,7 @@
 PRAGMA foreign_keys = ON;
 
 create table functions(id integer primary key, repr varchar(500));
-create table tags(id integer primary key, name varchar(500));
+create table tags(id integer primary key, name varchar(500) unique);
 
 create table tag_to_function(
     id integer primary key,
@@ -17,7 +17,7 @@ insert into functions (id, repr) values (2, 'add:int(int,int)'), (3, 'mul:int(in
 insert into functions (id, repr) values (4, 'grid:int(int, int, char**)');
 
 
-insert into tags (id, name) values (1, 'r:int'), (2, 'p:01:char**'), (3, 'p:02:int'), (4, 'p:01:int');
+insert or ignore into tags (id, name) values (1, 'r:int'), (2, 'p:01:char**'), (3, 'p:02:int'), (4, 'p:01:int');
 
 insert into tag_to_function (tag_id, function_id) values (1, 1), (1, 2), (1, 3); -- return int
 insert into tag_to_function (tag_id, function_id) values (3, 2), (3, 3), (3, 4); -- take at least two int

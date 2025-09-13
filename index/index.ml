@@ -954,6 +954,7 @@ module SqliteBased : S with type config = config_open_file = struct
   external sqlite3_open : string -> t = "caml_sqlite3_open"
   external _sqlite3_close : t -> unit = "caml_sqlite3_close"
   external sqlite3_exec : t -> string -> (string -> unit) -> unit = "caml_sqlite3_exec"
+  external sqlite3_last_row_id : t -> int64 = "caml_sqlite3_last_row_id"
 
   let init (config : config) =
     match config.mode with
@@ -986,13 +987,20 @@ create table tag_to_function(
   ;;
 
   let store t fs =
-    let insert_values =
+    let insert_function_values =
       fs
       |> List.map (fun f -> Printf.sprintf "('%s')" (FunctionRepr.format f))
       |> String.concat ","
     in
-    let insert = Printf.sprintf "insert into functions (repr) values %s;" insert_values in
-    sqlite3_exec t insert ignore
+    let insert_functions =
+      Printf.sprintf "insert into functions (repr) values %s;" insert_function_values
+    in
+    let last_row_id = sqlite3_last_row_id t in
+    sqlite3_exec t insert_functions ignore;
+    assert (
+      Int64.equal
+        (Int64.sub (sqlite3_last_row_id t) last_row_id)
+        (Int64.of_int (List.length fs)))
   ;;
 
   let get t signature =
