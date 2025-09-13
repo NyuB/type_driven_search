@@ -86,6 +86,7 @@ let () =
   Dynarray.add_last results @@ bench (module InMemory);
   (* Dynarray.add_last results @@ bench (module Index.FileBased); *)
   Dynarray.add_last results @@ bench (module Index.FileBasedSorted);
+  Dynarray.add_last results @@ bench (module Index.SqliteBased);
   let cell_widths =
     Array.mapi
       (fun i _ ->
