@@ -14,6 +14,7 @@
 (tests
  (names index_tests)
  (modules index_tests)
+ (modes byte exe)
  (libraries alcotest index signature testability))
 
 (library

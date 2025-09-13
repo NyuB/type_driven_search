@@ -39,3 +39,7 @@ docker-build: Dockerfile
 
 docker-shell:
 	docker run -it --rm --entrypoint bash -v "$$(pwd)/test_resources:/app/mount" tds
+
+clean:
+	-rm temp*.txt
+	-rm -rf report/*

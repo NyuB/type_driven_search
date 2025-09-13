@@ -968,6 +968,25 @@ module SqliteBased : S with type config = config_open_file = struct
       t
   ;;
 
+  let _repr_gc_stats
+        ({ major_words
+         ; minor_words
+         ; promoted_words
+         ; minor_collections
+         ; major_collections
+         ; _
+         } :
+          Gc.stat)
+    =
+    Printf.sprintf
+      "{ MW = %f; mw = %f; ^w = %f; MC = %d; mc = %d }"
+      major_words
+      minor_words
+      promoted_words
+      major_collections
+      minor_collections
+  ;;
+
   let store t fs =
     let insert_values =
       fs
@@ -982,11 +1001,17 @@ module SqliteBased : S with type config = config_open_file = struct
     let signature = Signature.canonical signature in
     let select = "select name from functions;" in
     let result = ref [] in
-    sqlite3_exec t select (fun f ->
+    let append =
+      fun f ->
+      (* let gc_stats = Gc.stat () in
+      print_endline (repr_gc_stats gc_stats); *)
       let parsed = FunctionRepr.parse f in
+      print_endline (Printf.sprintf "\tParsed");
       if Signature.equal signature (Signature.canonical parsed.signature)
       then result := parsed :: !result
-      else ());
+      else ()
+    in
+    sqlite3_exec t select append;
     !result
   ;;
 
@@ -994,6 +1019,7 @@ module SqliteBased : S with type config = config_open_file = struct
     let select = "select name from functions;" in
     let result = ref [] in
     sqlite3_exec t select (fun f ->
+      print_endline (Printf.sprintf "Parsing query result %s" f);
       let parsed = FunctionRepr.parse f in
       if matches_query query parsed then result := parsed :: !result else ());
     !result
