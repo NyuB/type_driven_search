@@ -952,8 +952,21 @@ module SqliteBased : S with type config = config_open_file = struct
   type config = config_open_file
 
   external sqlite3_open : string -> t = "caml_sqlite3_open"
+  external _sqlite3_close : t -> unit = "caml_sqlite3_close"
+  external _sqlite3_exec : t -> (string -> unit) -> unit = "caml_sqlite3_exec"
 
-  let init (config : config) = sqlite3_open config.file
+  let init (config : config) =
+    match config.mode with
+    | Connect -> sqlite3_open config.file
+    | Create ->
+      let () =
+        try Sys.remove config.file with
+        | _ -> ()
+      in
+      let t = sqlite3_open config.file in
+      t
+  ;;
+
   let store _ _ = failwith "Unsupported operation"
   let get _ _ = failwith "Unsupported operation"
   let query _ _ = failwith "Unsupported operation"
