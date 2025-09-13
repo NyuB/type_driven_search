@@ -416,6 +416,10 @@ let () =
               Index.FileBasedSorted.init { file = temp_index_file (); mode = Create })
            get_store_tests
        ; modular_index_test_suite
+           (module Index.SqliteBased)
+           (fun () -> Index.SqliteBased.init { file = temp_index_file (); mode = Create })
+           get_store_tests
+       ; modular_index_test_suite
            (module Index.InMemory)
            (fun () -> Index.InMemory.init ())
            query_tests
@@ -427,6 +431,10 @@ let () =
            (module Index.FileBasedSorted)
            (fun () ->
               Index.FileBasedSorted.init { file = temp_index_file (); mode = Create })
+           query_tests
+       ; modular_index_test_suite
+           (module Index.SqliteBased)
+           (fun () -> Index.SqliteBased.init { file = temp_index_file (); mode = Create })
            query_tests
        ; "Sqlite", [ test_sqlite_open temp_index_file ]
        ]

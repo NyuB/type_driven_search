@@ -32,7 +32,7 @@ CAMLprim value caml_sqlite3_open(value caml_file) {
 
 CAMLprim value caml_sqlite3_close(value caml_sqlite3_db_connection) {
   CAMLparam1(caml_sqlite3_db_connection);
-  sqlite3 *db = *(sqlite3 **)caml_sqlite3_db_connection;
+  sqlite3 *db = *(sqlite3 **)Data_custom_val(caml_sqlite3_db_connection);
   sqlite3_close(db);
   CAMLreturn(Val_unit);
 }
@@ -41,10 +41,17 @@ CAMLprim value caml_sqlite3_exec(value caml_sqlite3_db_connection,
                                  value caml_sql_query,
                                  value caml_sql_callback) {
   CAMLparam2(caml_sqlite3_db_connection, caml_sql_query);
-  sqlite3 *db = *(sqlite3 **)caml_sqlite3_db_connection;
+  sqlite3 *db = *(sqlite3 **)Data_custom_val(caml_sqlite3_db_connection);
   const char *sql_query = String_val(caml_sql_query);
   sqlite3_stmt *query;
-  sqlite3_prepare_v2(db, sql_query, strlen(sql_query), &query, NULL);
+  {
+    int err =
+        sqlite3_prepare_v2(db, sql_query, strlen(sql_query), &query, NULL);
+    if (err != SQLITE_OK) {
+      printf("Error (%d) preparing statement '%s': '%s'\n", err, sql_query,
+             sqlite3_errstr(err));
+    }
+  }
 
   int statusCode = SQLITE_ROW;
   while (statusCode == SQLITE_ROW) {
@@ -56,12 +63,17 @@ CAMLprim value caml_sqlite3_exec(value caml_sqlite3_db_connection,
           caml_alloc_initialized_string(result_length, (const char *)result);
 
       caml_callback(caml_sql_callback, caml_result);
-    } else if (statusCode == SQLITE_DONE) {
-      printf("Done querying\n");
-    } else {
+    } else if (statusCode != SQLITE_DONE) {
       printf("Error (%d) while looping on query: '%s' ", statusCode,
              sqlite3_errstr(statusCode));
     }
+  }
+
+  int err = sqlite3_finalize(query);
+  if (err != SQLITE_OK) {
+    printf("Error (%d) while finalizing query: '%s'\n", err,
+           sqlite3_errstr(err));
+    return err;
   }
   CAMLreturn(Val_unit);
 }

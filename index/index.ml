@@ -953,21 +953,49 @@ module SqliteBased : S with type config = config_open_file = struct
 
   external sqlite3_open : string -> t = "caml_sqlite3_open"
   external _sqlite3_close : t -> unit = "caml_sqlite3_close"
-  external _sqlite3_exec : t -> (string -> unit) -> unit = "caml_sqlite3_exec"
+  external sqlite3_exec : t -> string -> (string -> unit) -> unit = "caml_sqlite3_exec"
 
   let init (config : config) =
     match config.mode with
     | Connect -> sqlite3_open config.file
     | Create ->
-      let () =
-        try Sys.remove config.file with
-        | _ -> ()
-      in
+      if Sys.file_exists config.file then Sys.remove config.file;
       let t = sqlite3_open config.file in
+      sqlite3_exec
+        t
+        "create table functions(id integer primary key, name varchar(500));"
+        print_endline;
       t
   ;;
 
-  let store _ _ = failwith "Unsupported operation"
-  let get _ _ = failwith "Unsupported operation"
-  let query _ _ = failwith "Unsupported operation"
+  let store t fs =
+    let insert_values =
+      fs
+      |> List.map (fun f -> Printf.sprintf "('%s')" (FunctionRepr.format f))
+      |> String.concat ","
+    in
+    let insert = Printf.sprintf "insert into functions (name) values %s;" insert_values in
+    sqlite3_exec t insert print_endline
+  ;;
+
+  let get t signature =
+    let signature = Signature.canonical signature in
+    let select = "select name from functions;" in
+    let result = ref [] in
+    sqlite3_exec t select (fun f ->
+      let parsed = FunctionRepr.parse f in
+      if Signature.equal signature (Signature.canonical parsed.signature)
+      then result := parsed :: !result
+      else ());
+    !result
+  ;;
+
+  let query t query =
+    let select = "select name from functions;" in
+    let result = ref [] in
+    sqlite3_exec t select (fun f ->
+      let parsed = FunctionRepr.parse f in
+      if matches_query query parsed then result := parsed :: !result else ());
+    !result
+  ;;
 end
