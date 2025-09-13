@@ -41,7 +41,7 @@ CAMLprim value caml_sqlite3_close(value caml_sqlite3_db_connection) {
 CAMLprim value caml_sqlite3_exec(value caml_sqlite3_db_connection,
                                  value caml_sql_query,
                                  value caml_sql_callback) {
-  CAMLparam2(caml_sqlite3_db_connection, caml_sql_query);
+  CAMLparam3(caml_sqlite3_db_connection, caml_sql_query, caml_sql_callback);
   sqlite3 *db = *(sqlite3 **)Data_custom_val(caml_sqlite3_db_connection);
   const char *sql_query = String_val(caml_sql_query);
   sqlite3_stmt *query;
@@ -62,7 +62,6 @@ CAMLprim value caml_sqlite3_exec(value caml_sqlite3_db_connection,
       unsigned int result_length = sqlite3_column_bytes(query, 0);
       value caml_result =
           caml_alloc_initialized_string(result_length, (const char *)result);
-      printf("Calling OCaml with row '%s' of length %d\n", result, result_length);
       caml_callback(caml_sql_callback, caml_result);
     } else if (statusCode != SQLITE_DONE) {
       printf("Error (%d) while looping on query: '%s' ", statusCode,
@@ -70,7 +69,6 @@ CAMLprim value caml_sqlite3_exec(value caml_sqlite3_db_connection,
     }
   }
 
-  printf(">>> Finalizing\n");
   int err = sqlite3_finalize(query);
   if (err != SQLITE_OK) {
     printf("Error (%d) while finalizing query: '%s'\n", err,

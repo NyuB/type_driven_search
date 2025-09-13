@@ -183,7 +183,6 @@ let test_interleaved_store (type i) (module I : Index.S with type t = i) (index 
 let test_get_respects_oracle (type i) (module I : Index.S with type t = i) (index : i) =
   ( Printf.sprintf "Matches the reference implementation (%s)" I.id
   , fun () ->
-      print_endline "Testing with oracle";
       if
         (* Avoid redundant testing since this generates moult queries *)
         String.equal I.id Index.InMemory.id
@@ -192,9 +191,7 @@ let test_get_respects_oracle (type i) (module I : Index.S with type t = i) (inde
         let rand = Testability.reproducible_random () in
         let functions = Testability.pseudo_random_functions rand 500 3 3 in
         let mem_index = Index.InMemory.init () in
-        print_endline ">>> Storing";
         I.store index functions;
-        print_endline ">>> Stored";
         Index.InMemory.store mem_index functions;
         let queries =
           (* Pick queries among stored function to ensure there are matches *)
@@ -202,7 +199,6 @@ let test_get_respects_oracle (type i) (module I : Index.S with type t = i) (inde
         in
         queries
         |> List.iter (fun signature ->
-          print_endline (Printf.sprintf "Querying %s" (Signature.string_of_t signature));
           let mem_results =
             Index.InMemory.get mem_index signature
             |> List.sort Signature.CFunction.compare

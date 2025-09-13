@@ -964,27 +964,8 @@ module SqliteBased : S with type config = config_open_file = struct
       sqlite3_exec
         t
         "create table functions(id integer primary key, name varchar(500));"
-        print_endline;
+        ignore;
       t
-  ;;
-
-  let _repr_gc_stats
-        ({ major_words
-         ; minor_words
-         ; promoted_words
-         ; minor_collections
-         ; major_collections
-         ; _
-         } :
-          Gc.stat)
-    =
-    Printf.sprintf
-      "{ MW = %f; mw = %f; ^w = %f; MC = %d; mc = %d }"
-      major_words
-      minor_words
-      promoted_words
-      major_collections
-      minor_collections
   ;;
 
   let store t fs =
@@ -994,7 +975,7 @@ module SqliteBased : S with type config = config_open_file = struct
       |> String.concat ","
     in
     let insert = Printf.sprintf "insert into functions (name) values %s;" insert_values in
-    sqlite3_exec t insert print_endline
+    sqlite3_exec t insert ignore
   ;;
 
   let get t signature =
@@ -1003,10 +984,7 @@ module SqliteBased : S with type config = config_open_file = struct
     let result = ref [] in
     let append =
       fun f ->
-      (* let gc_stats = Gc.stat () in
-      print_endline (repr_gc_stats gc_stats); *)
       let parsed = FunctionRepr.parse f in
-      print_endline (Printf.sprintf "\tParsed");
       if Signature.equal signature (Signature.canonical parsed.signature)
       then result := parsed :: !result
       else ()
@@ -1019,7 +997,6 @@ module SqliteBased : S with type config = config_open_file = struct
     let select = "select name from functions;" in
     let result = ref [] in
     sqlite3_exec t select (fun f ->
-      print_endline (Printf.sprintf "Parsing query result %s" f);
       let parsed = FunctionRepr.parse f in
       if matches_query query parsed then result := parsed :: !result else ());
     !result
