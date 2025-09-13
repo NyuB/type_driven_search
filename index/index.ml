@@ -965,6 +965,23 @@ module SqliteBased : S with type config = config_open_file = struct
         t
         "create table functions(id integer primary key, repr varchar(500));"
         ignore;
+      sqlite3_exec
+        t
+        "create table tags(id integer primary key, name varchar(500));"
+        ignore;
+      sqlite3_exec
+        t
+        {|
+create table tag_to_function(
+  id integer primary key,
+  tag_id integer,
+  function_id integer, 
+  -- constraints
+  foreign key (tag_id) references tags(id),
+  foreign key (function_id) references functions(id)
+);
+        |}
+        ignore;
       t
   ;;
 
