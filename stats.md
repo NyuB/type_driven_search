@@ -92,3 +92,10 @@
 |           InMemory|  47.|    3.| 2574.|1.57652|
 |    FileBasedSorted|7739.|  173.| 7635.|1.57652|
 |        SqliteBased|😮23.|24171.|24817.|1.57652|
+
+## Store tags and tag -> function
+|Index Type \ Op(ms)|        Store|          Get|        Query|Match %|
+|-------------------|-------------|-------------|-------------|-------|
+|           InMemory|48.|4.|2565.|1.57652|
+|    FileBasedSorted|7191.|174.|7311.|1.57652|
+|        SqliteBased|🐌528.|23856.|24894.|1.57652|

@@ -1010,6 +1010,11 @@ create table tag_to_function(
     single_return_callback (sqlite3_exec_int64 t query) 0L
   ;;
 
+  let sql_tag_id t tag =
+    let query = Printf.sprintf "select id from tags where name = '%s';" tag in
+    single_return_callback (sqlite3_exec_int64 t query) 0L
+  ;;
+
   let store t fs =
     let insert_function_values =
       fs
@@ -1022,12 +1027,13 @@ create table tag_to_function(
     let last_row = sql_table_count t "functions" in
     sqlite3_exec t insert_functions ignore;
     assert (Int64.sub (sql_table_count t "functions") last_row = itol (List.length fs));
-    let tags =
+    let function_to_tags =
       fs
-      |> List.mapi (fun i (f : Signature.CFunction.t) -> i, Tag.of_signature f.signature)
+      |> List.mapi (fun i (f : Signature.CFunction.t) ->
+        Int64.add last_row (itol (1 + i)), Tag.of_signature f.signature)
     in
     let insert_tag_values =
-      tags
+      function_to_tags
       |> List.concat_map snd
       |> List.map sql_single_string_insert_value
       |> String.concat ","
@@ -1035,7 +1041,24 @@ create table tag_to_function(
     let insert_tags =
       Printf.sprintf "insert or ignore into tags (name) values %s;" insert_tag_values
     in
-    sqlite3_exec t insert_tags ignore
+    sqlite3_exec t insert_tags ignore;
+    let tag_to_fucntion_values =
+      function_to_tags
+      |> List.concat_map (fun (fid, tags) ->
+        List.map
+          (fun tag ->
+             let tid = sql_tag_id t tag in
+             tid, fid)
+          tags)
+      |> List.map (fun (tid, fid) -> Printf.sprintf "(%Ld,%Ld)" tid fid)
+      |> String.concat ", "
+    in
+    let insert_tag_to_function =
+      Printf.sprintf
+        "insert into tag_to_function (tag_id, function_id) values %s;"
+        tag_to_fucntion_values
+    in
+    sqlite3_exec t insert_tag_to_function ignore
   ;;
 
   let get t signature =
