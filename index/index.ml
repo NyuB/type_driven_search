@@ -954,7 +954,14 @@ module SqliteBased : S with type config = config_open_file = struct
   external sqlite3_open : string -> t = "caml_sqlite3_open"
   external _sqlite3_close : t -> unit = "caml_sqlite3_close"
   external sqlite3_exec : t -> string -> (string -> unit) -> unit = "caml_sqlite3_exec"
-  external sqlite3_last_row_id : t -> int64 = "caml_sqlite3_last_row_id"
+  external _sqlite3_last_row_id : t -> int64 = "caml_sqlite3_last_row_id"
+
+  external sqlite3_exec_int64
+    :  t
+    -> string
+    -> (int64 -> unit)
+    -> unit
+    = "caml_sqlite3_exec_int64"
 
   let init (config : config) =
     match config.mode with
@@ -986,21 +993,49 @@ create table tag_to_function(
       t
   ;;
 
+  let sql_single_string_insert_value v = Printf.sprintf "('%s')" v
+
+  let single_return_callback (f : ('a -> unit) -> unit) (default : 'a) : 'a =
+    let result = ref default
+    and called = ref false in
+    f (fun v ->
+      assert (not !called);
+      called := true;
+      result := v);
+    !result
+  ;;
+
+  let sql_table_count t table =
+    let query = Printf.sprintf "select count(*) from %s;" table in
+    single_return_callback (sqlite3_exec_int64 t query) 0L
+  ;;
+
   let store t fs =
     let insert_function_values =
       fs
-      |> List.map (fun f -> Printf.sprintf "('%s')" (FunctionRepr.format f))
+      |> List.map (Fun.compose sql_single_string_insert_value FunctionRepr.format)
       |> String.concat ","
     in
     let insert_functions =
       Printf.sprintf "insert into functions (repr) values %s;" insert_function_values
     in
-    let last_row_id = sqlite3_last_row_id t in
+    let last_row = sql_table_count t "functions" in
     sqlite3_exec t insert_functions ignore;
-    assert (
-      Int64.equal
-        (Int64.sub (sqlite3_last_row_id t) last_row_id)
-        (Int64.of_int (List.length fs)))
+    assert (Int64.sub (sql_table_count t "functions") last_row = itol (List.length fs));
+    let tags =
+      fs
+      |> List.mapi (fun i (f : Signature.CFunction.t) -> i, Tag.of_signature f.signature)
+    in
+    let insert_tag_values =
+      tags
+      |> List.concat_map snd
+      |> List.map sql_single_string_insert_value
+      |> String.concat ","
+    in
+    let insert_tags =
+      Printf.sprintf "insert into tags (name) values %s;" insert_tag_values
+    in
+    sqlite3_exec t insert_tags ignore
   ;;
 
   let get t signature =
