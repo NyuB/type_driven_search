@@ -66,6 +66,7 @@ sqlite3/shell: sqlite3/sqlite3.o sqlite3/shell.c
 	$(CC) $(CFLAGS) -o $@ sqlite3/sqlite3.o sqlite3/shell.c $(LINK_MATH)
 
 db.sqlite: sqlite3/shell sql/db_init.sql
+	-rm db.sqlite
 	echo .exit | sqlite3/shell db.sqlite -init sql/db_init.sql
 
 sqlite_test_run: sqlite_test db.sqlite
@@ -74,7 +75,7 @@ sqlite_test_run: sqlite_test db.sqlite
 db-shell: db.sqlite
 	sqlite3/shell db.sqlite
 
-db-query:
+db-query: db.sqlite
 	echo ".read ./sql/query.sql" | sqlite3/shell db.sqlite
 
 SILENT_ERROR=2> /dev/null
