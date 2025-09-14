@@ -971,7 +971,8 @@ module SqliteBased : S with type config = config_open_file = struct
       let t = sqlite3_open config.file in
       sqlite3_exec
         t
-        "create table functions(id integer primary key, repr varchar(500));"
+        "create table functions(id integer primary key, repr varchar(500), signature \
+         varchar(500));"
         ignore;
       sqlite3_exec
         t
@@ -990,12 +991,16 @@ create table tag_to_function(
 );
         |}
         ignore;
-      (* sqlite3_exec t "create index tag_name_index on tags (name);" ignore; *)
+      sqlite3_exec
+        t
+        "create index function_signature_index on functions (signature);"
+        ignore;
       sqlite3_exec t "create index tag_id_index on tag_to_function (tag_id);" ignore;
       t
   ;;
 
   let sql_single_string_insert_value v = Printf.sprintf "('%s')" v
+  let sql_string_pair_insert_value left right = Printf.sprintf "('%s','%s')" left right
 
   let single_return_callback (f : ('a -> unit) -> unit) (default : 'a) : 'a =
     let result = ref default
@@ -1020,11 +1025,16 @@ create table tag_to_function(
   let store t fs =
     let insert_function_values =
       fs
-      |> List.map (Fun.compose sql_single_string_insert_value FunctionRepr.format)
+      |> List.map (fun f ->
+        sql_string_pair_insert_value
+          (FunctionRepr.format f)
+          (Signature.string_of_t (Signature.canonical f.signature)))
       |> String.concat ","
     in
     let insert_functions =
-      Printf.sprintf "insert into functions (repr) values %s;" insert_function_values
+      Printf.sprintf
+        "insert into functions (repr, signature) values %s;"
+        insert_function_values
     in
     let last_row = sql_table_count t "functions" in
     sqlite3_exec t insert_functions ignore;
@@ -1063,22 +1073,11 @@ create table tag_to_function(
     sqlite3_exec t insert_tag_to_function ignore
   ;;
 
-  let sql_functions_tagged_composable tag =
-    Printf.sprintf
-      "select f.repr from (select id from tags where name = '%s') t join tag_to_function \
-       t2f on t.id = t2f.tag_id join functions f on f.id = t2f.function_id"
-      tag
-  ;;
-
   let sql_functions_tagged_composable_id tag =
     Printf.sprintf
       "select f.id from (select id from tags where name = '%s') t join tag_to_function \
        t2f on t.id = t2f.tag_id join functions f on f.id = t2f.function_id"
       tag
-  ;;
-
-  let sql_functions_tagged tag =
-    Printf.sprintf "%s;" (sql_functions_tagged_composable tag)
   ;;
 
   let sql_functions_tagged_all tags =
@@ -1091,15 +1090,16 @@ create table tag_to_function(
 
   let get t signature =
     let signature = Signature.canonical signature in
-    let return_tag = Tag.of_return signature.return in
-    let select = sql_functions_tagged return_tag in
+    let select =
+      Printf.sprintf
+        "select repr from functions where signature = '%s'"
+        (Signature.string_of_t signature)
+    in
     let result = ref [] in
     let append =
       fun f ->
       let parsed = FunctionRepr.parse f in
-      if Signature.equal signature (Signature.canonical parsed.signature)
-      then result := parsed :: !result
-      else ()
+      result := parsed :: !result
     in
     sqlite3_exec t select append;
     !result
