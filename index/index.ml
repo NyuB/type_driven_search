@@ -1067,7 +1067,7 @@ create table tag_to_function(
     let select =
       Printf.sprintf
         "select f.repr from tag_to_function left join tags t on t.id = tag_id join \
-         functions f on f.id = function_id where t.name like '%s';"
+         functions f on f.id = function_id where t.name = '%s';"
         return_tag
     in
     let result = ref [] in
