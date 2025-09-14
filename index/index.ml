@@ -1063,16 +1063,17 @@ create table tag_to_function(
     sqlite3_exec t insert_tag_to_function ignore
   ;;
 
+  let sql_functions_tagged tag =
+    Printf.sprintf
+      "select f.repr from (select id from tags where name = '%s') t join tag_to_function \
+       t2f on t.id = t2f.tag_id join functions f on f.id = t2f.function_id;"
+      tag
+  ;;
+
   let get t signature =
     let signature = Signature.canonical signature in
     let return_tag = Tag.of_return signature.return in
-    let select =
-      Printf.sprintf
-        "select f.repr from (select id from tags where name = '%s') t join \
-         tag_to_function t2f on t.id = t2f.tag_id join functions f on f.id = \
-         t2f.function_id;"
-        return_tag
-    in
+    let select = sql_functions_tagged return_tag in
     let result = ref [] in
     let append =
       fun f ->
@@ -1085,8 +1086,9 @@ create table tag_to_function(
     !result
   ;;
 
-  let query t query =
-    let select = "select repr from functions;" in
+  let query t (query : Query.t) =
+    let return_tag = Tag.of_query_return query in
+    let select = sql_functions_tagged return_tag in
     let result = ref [] in
     sqlite3_exec t select (fun f ->
       let parsed = FunctionRepr.parse f in
