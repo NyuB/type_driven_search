@@ -990,6 +990,8 @@ create table tag_to_function(
 );
         |}
         ignore;
+      (* sqlite3_exec t "create index tag_name_index on tags (name);" ignore; *)
+      sqlite3_exec t "create index tag_id_index on tag_to_function (tag_id);" ignore;
       t
   ;;
 
@@ -1066,8 +1068,9 @@ create table tag_to_function(
     let return_tag = Tag.of_return signature.return in
     let select =
       Printf.sprintf
-        "select f.repr from tag_to_function left join tags t on t.id = tag_id join \
-         functions f on f.id = function_id where t.name = '%s';"
+        "select f.repr from (select id from tags where name = '%s') t join \
+         tag_to_function t2f on t.id = t2f.tag_id join functions f on f.id = \
+         t2f.function_id;"
         return_tag
     in
     let result = ref [] in
