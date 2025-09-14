@@ -1063,11 +1063,30 @@ create table tag_to_function(
     sqlite3_exec t insert_tag_to_function ignore
   ;;
 
-  let sql_functions_tagged tag =
+  let sql_functions_tagged_composable tag =
     Printf.sprintf
       "select f.repr from (select id from tags where name = '%s') t join tag_to_function \
-       t2f on t.id = t2f.tag_id join functions f on f.id = t2f.function_id;"
+       t2f on t.id = t2f.tag_id join functions f on f.id = t2f.function_id"
       tag
+  ;;
+
+  let sql_functions_tagged_composable_id tag =
+    Printf.sprintf
+      "select f.id from (select id from tags where name = '%s') t join tag_to_function \
+       t2f on t.id = t2f.tag_id join functions f on f.id = t2f.function_id"
+      tag
+  ;;
+
+  let sql_functions_tagged tag =
+    Printf.sprintf "%s;" (sql_functions_tagged_composable tag)
+  ;;
+
+  let sql_functions_tagged_all tags =
+    tags
+    |> List.map sql_functions_tagged_composable_id
+    |> String.concat " intersect "
+    |> Printf.sprintf "(%s)"
+    |> Printf.sprintf "select fun.repr from %s f join functions fun on f.id = fun.id;"
   ;;
 
   let get t signature =
@@ -1086,9 +1105,18 @@ create table tag_to_function(
     !result
   ;;
 
+  let take_at_most_n n l =
+    let rec aux acc n = function
+      | [] -> List.rev acc
+      | _ when n <= 0 -> List.rev acc
+      | h :: tail -> aux (h :: acc) (n - 1) tail
+    in
+    aux [] n l
+  ;;
+
   let query t (query : Query.t) =
-    let return_tag = Tag.of_query_return query in
-    let select = sql_functions_tagged return_tag in
+    let tags = Tag.of_query query in
+    let select = sql_functions_tagged_all (take_at_most_n 3 tags) in
     let result = ref [] in
     sqlite3_exec t select (fun f ->
       let parsed = FunctionRepr.parse f in
