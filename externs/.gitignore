@@ -6,7 +6,8 @@ fs_test
 sqlite_test
 
 # Download this from sqlite3 website
-sqlite3/
+sqlite3/*.o
+sqlite3/shell
 
 # clangd
 compile_commands.json
