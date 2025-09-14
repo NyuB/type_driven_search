@@ -975,7 +975,7 @@ module SqliteBased : S with type config = config_open_file = struct
         ignore;
       sqlite3_exec
         t
-        "create table tags(id integer primary key, name varchar(500));"
+        "create table tags(id integer primary key, name varchar(500) unique);"
         ignore;
       sqlite3_exec
         t
@@ -1033,7 +1033,7 @@ create table tag_to_function(
       |> String.concat ","
     in
     let insert_tags =
-      Printf.sprintf "insert into tags (name) values %s;" insert_tag_values
+      Printf.sprintf "insert or ignore into tags (name) values %s;" insert_tag_values
     in
     sqlite3_exec t insert_tags ignore
   ;;
