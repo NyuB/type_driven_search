@@ -41,12 +41,15 @@ module IndexCommand = struct
     ; format : functions_format
     }
 
-  let defaults = { index_id = "FileBased"; format = C_Declarations }
+  let defaults = { index_id = Index.SqliteBased.id; format = C_Declarations }
 
   module StringMap = Map.Make (String)
 
   let index_map : (module Index.S with type config = Index.config_open_file) StringMap.t =
-    [ (module Index.FileBased); (module Index.FileBasedSorted) ]
+    [ (module Index.FileBased)
+    ; (module Index.FileBasedSorted)
+    ; (module Index.SqliteBased)
+    ]
     |> List.map (fun (module I : Index.S with type config = Index.config_open_file) ->
       I.id, (module I : Index.S with type config = Index.config_open_file))
     |> StringMap.of_list
@@ -151,7 +154,7 @@ module IndexCommand = struct
     | "ingest" ->
       let index = I.init Index.{ file = args.(1); mode = Create } in
       ingest (module I) index args.(2) config.format
-    | _ -> failwith "Invalid command"
+    | _ -> usage_and_exit 3
   ;;
 end
 

@@ -23,20 +23,20 @@ Explain
   a function returning a void from (a pointer to an unsigned int)
 
 Index  
-  $ type_driven_search index create index.txt
-  $ type_driven_search index store index.txt "main" "int (int,char**)"
-  $ type_driven_search index store index.txt "add" "int (int,int)"
-  $ type_driven_search index store index.txt "mul" "int (int,int)"
-  $ type_driven_search index get index.txt "int (int,int)"
+  $ type_driven_search index create index.sqlite
+  $ type_driven_search index store index.sqlite "main" "int (int,char**)"
+  $ type_driven_search index store index.sqlite "add" "int (int,int)"
+  $ type_driven_search index store index.sqlite "mul" "int (int,int)"
+  $ type_driven_search index get index.sqlite "int (int,int)" | sort
   int add(int, int)
   int mul(int, int)
-  $ rm index.txt
+  $ rm index.sqlite
 
-  $ type_driven_search index --index="FileBasedSorted" create index.txt
-  $ type_driven_search index --index="FileBasedSorted" store index.txt "main" "int (int,char**)"
-  $ type_driven_search index --index="FileBasedSorted" store index.txt "add" "int (int,int)"
-  $ type_driven_search index --index="FileBasedSorted" store index.txt "mul" "int (int,int)"
-  $ type_driven_search index --index="FileBasedSorted" get index.txt "int (int,int)" | sort
+  $ type_driven_search index --index="FileBased" create index.txt
+  $ type_driven_search index --index="FileBased" store index.txt "main" "int (int,char**)"
+  $ type_driven_search index --index="FileBased" store index.txt "add" "int (int,int)"
+  $ type_driven_search index --index="FileBased" store index.txt "mul" "int (int,int)"
+  $ type_driven_search index --index="FileBased" get index.txt "int (int,int)" | sort
   int add(int, int)
   int mul(int, int)
   $ rm index.txt
