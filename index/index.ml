@@ -1063,7 +1063,13 @@ create table tag_to_function(
 
   let get t signature =
     let signature = Signature.canonical signature in
-    let select = "select repr from functions;" in
+    let return_tag = Tag.of_return signature.return in
+    let select =
+      Printf.sprintf
+        "select f.repr from tag_to_function left join tags t on t.id = tag_id join \
+         functions f on f.id = function_id where t.name like '%s';"
+        return_tag
+    in
     let result = ref [] in
     let append =
       fun f ->
