@@ -19,7 +19,7 @@ insert into functions (id, repr) values (4, 'grid:int(int, int, char**)');
 
 insert or ignore into tags (id, name) values (1, 'r:int'), (2, 'p:01:char**'), (3, 'p:02:int'), (4, 'p:01:int');
 
-insert into tag_to_function (tag_id, function_id) values (1, 1), (1, 2), (1, 3); -- return int
+insert into tag_to_function (tag_id, function_id) values (1, 1), (1, 2), (1, 3), (1, 4); -- return int
 insert into tag_to_function (tag_id, function_id) values (3, 2), (3, 3), (3, 4); -- take at least two int
 insert into tag_to_function (tag_id, function_id) values (4, 2), (4, 3), (4, 1); -- take at least one int
 insert into tag_to_function (tag_id, function_id) values (3, 1), (2, 4); -- take at least one char**^

@@ -999,8 +999,8 @@ create table tag_to_function(
       t
   ;;
 
-  let sql_single_string_insert_value v = Printf.sprintf "('%s')" v
-  let sql_string_pair_insert_value left right = Printf.sprintf "('%s','%s')" left right
+  let sql_value_single_column v = Printf.sprintf "('%s')" v
+  let sql_value_two_columns first second = Printf.sprintf "('%s','%s')" first second
 
   let single_return_callback (f : ('a -> unit) -> unit) (default : 'a) : 'a =
     let result = ref default
@@ -1012,77 +1012,79 @@ create table tag_to_function(
     !result
   ;;
 
-  let sql_table_count t table =
+  let sql_exec_select_table_count t table =
     let query = Printf.sprintf "select count(*) from %s;" table in
     single_return_callback (sqlite3_exec_int64 t query) 0L
   ;;
 
-  let sql_tag_id t tag =
+  let sql_exec_select_one_tag_id t tag =
     let query = Printf.sprintf "select id from tags where name = '%s';" tag in
     single_return_callback (sqlite3_exec_int64 t query) 0L
   ;;
 
   let store t fs =
-    let insert_function_values =
+    let sql_values_function =
       fs
       |> List.map (fun f ->
-        sql_string_pair_insert_value
+        sql_value_two_columns
           (FunctionRepr.format f)
           (Signature.string_of_t (Signature.canonical f.signature)))
       |> String.concat ","
     in
-    let insert_functions =
+    let sql_insert_functions =
       Printf.sprintf
         "insert into functions (repr, signature) values %s;"
-        insert_function_values
+        sql_values_function
     in
-    let last_row = sql_table_count t "functions" in
-    sqlite3_exec t insert_functions ignore;
-    assert (Int64.sub (sql_table_count t "functions") last_row = itol (List.length fs));
+    let last_row = sql_exec_select_table_count t "functions" in
+    sqlite3_exec t sql_insert_functions ignore;
+    assert (
+      Int64.sub (sql_exec_select_table_count t "functions") last_row
+      = itol (List.length fs));
     let function_to_tags =
       fs
       |> List.mapi (fun i (f : Signature.CFunction.t) ->
         Int64.add last_row (itol (1 + i)), Tag.of_signature f.signature)
     in
-    let insert_tag_values =
+    let sql_values_tag =
       function_to_tags
       |> List.concat_map snd
-      |> List.map sql_single_string_insert_value
+      |> List.map sql_value_single_column
       |> String.concat ","
     in
-    let insert_tags =
-      Printf.sprintf "insert or ignore into tags (name) values %s;" insert_tag_values
+    let sql_insert_tags =
+      Printf.sprintf "insert or ignore into tags (name) values %s;" sql_values_tag
     in
-    sqlite3_exec t insert_tags ignore;
-    let tag_to_fucntion_values =
+    sqlite3_exec t sql_insert_tags ignore;
+    let sql_values_tag_to_function =
       function_to_tags
       |> List.concat_map (fun (fid, tags) ->
         List.map
           (fun tag ->
-             let tid = sql_tag_id t tag in
+             let tid = sql_exec_select_one_tag_id t tag in
              tid, fid)
           tags)
       |> List.map (fun (tid, fid) -> Printf.sprintf "(%Ld,%Ld)" tid fid)
       |> String.concat ", "
     in
-    let insert_tag_to_function =
+    let sql_insert_tag_to_function =
       Printf.sprintf
         "insert into tag_to_function (tag_id, function_id) values %s;"
-        tag_to_fucntion_values
+        sql_values_tag_to_function
     in
-    sqlite3_exec t insert_tag_to_function ignore
+    sqlite3_exec t sql_insert_tag_to_function ignore
   ;;
 
-  let sql_functions_tagged_composable_id tag =
+  let sql_select_functions_id_tagged tag =
     Printf.sprintf
       "select f.id from (select id from tags where name = '%s') t join tag_to_function \
        t2f on t.id = t2f.tag_id join functions f on f.id = t2f.function_id"
       tag
   ;;
 
-  let sql_functions_tagged_all tags =
+  let sql_select_functions_tagged_all tags =
     tags
-    |> List.map sql_functions_tagged_composable_id
+    |> List.map sql_select_functions_id_tagged
     |> String.concat " intersect "
     |> Printf.sprintf "(%s)"
     |> Printf.sprintf "select fun.repr from %s f join functions fun on f.id = fun.id;"
@@ -1090,18 +1092,14 @@ create table tag_to_function(
 
   let get t signature =
     let signature = Signature.canonical signature in
-    let select =
+    let sql_select_functions_with_signature =
       Printf.sprintf
         "select repr from functions where signature = '%s'"
         (Signature.string_of_t signature)
     in
     let result = ref [] in
-    let append =
-      fun f ->
-      let parsed = FunctionRepr.parse f in
-      result := parsed :: !result
-    in
-    sqlite3_exec t select append;
+    let append = fun f -> result := FunctionRepr.parse f :: !result in
+    sqlite3_exec t sql_select_functions_with_signature append;
     !result
   ;;
 
@@ -1116,7 +1114,7 @@ create table tag_to_function(
 
   let query t (query : Query.t) =
     let tags = Tag.of_query query in
-    let select = sql_functions_tagged_all (take_at_most_n 3 tags) in
+    let select = sql_select_functions_tagged_all (take_at_most_n 3 tags) in
     let result = ref [] in
     sqlite3_exec t select (fun f ->
       let parsed = FunctionRepr.parse f in

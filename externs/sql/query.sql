@@ -1,13 +1,2 @@
 -- .read ./sql/query.sql
-select f.repr from tag_to_function
-    join functions f on f.id = function_id
-    join tags t on t.id = tag_id
-    where t.name like 'p:02:int'
-    
-intersect
-
-select f.repr from tag_to_function
-    join functions f on f.id = function_id
-    join tags t on t.id = tag_id
-    where t.name like 'p:01:char**'
-;
+select distinct f.repr from (select id from tags where name = 'r:int') t join tag_to_function f2t on f2t.tag_id = t.id join functions f on f.id = f2t.function_id; 
