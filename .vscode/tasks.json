@@ -27,6 +27,7 @@
             "args": [
                 "test-promote"
             ],
+            "problemMatcher": [],
             "presentation": {
                 "echo": false,
                 "reveal": "never",
