@@ -4,9 +4,6 @@ CFLAGS=-Wall -Wextra -Werror
 fmt:
 	clang-format *.c *.h
 
-fs.o: fs.c fs.h
-	$(CC) $(CFLAGS) -c -o $@ fs.c
-
 lib%.a: %.o
 	ar -r $@ $<
 
@@ -19,18 +16,7 @@ libcamlite.a: camlite.o sqlite3/sqlite3.o
 libcamlite.so: camlite.o sqlite3/sqlite3.o
 	$(CC) $(CFLAGS) -shared -o $@ $^
 
-fs_test.o: fs_test.c fs.h
-	$(CC) $(CFLAGS) -c -o $@.o fs_test.c
-
-fs_test: fs.a fs_test.c
-	$(CC) $(CFLAGS) -o $@ fs_test.c libfs.a
-
-.PHONY: fs_test_run sqlite_test_run db-shell db-query clean
-fs_test_run: fs_test
-	echo "A" > a
-	-./fs_test a b
-	-cat b
-	-rm b
+.PHONY: sqlite_test_run db-shell db-query clean
 
 OCAMLC_WHERE=$(shell ocamlc -where)
 camlite.o: camlite.c
@@ -84,6 +70,5 @@ clean:
 	@-rm *.a $(SILENT_ERROR)
 	@-rm *.so $(SILENT_ERROR)
 	@-rm *.sqlite $(SILENT_ERROR)
-	@-rm fs_test $(SILENT_ERROR)
 	@-rm sqlite3/shell $(SILENT_ERROR)
 	@-rm sqlite3/*.o $(SILENT_ERROR)

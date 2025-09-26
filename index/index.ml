@@ -792,7 +792,10 @@ module FileBasedSorted = struct
     execute_tag_insertion_plan storage tag_insertion_plan temp_oc
   ;;
 
-  external mv : string -> string -> unit = "mv"
+  let mv src dst =
+    Unix.rename src dst;
+    Unix.chmod dst 0o777
+  ;;
 
   let repr_storage_layout (storage : Storage.t) =
     let functions =

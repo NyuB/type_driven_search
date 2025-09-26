@@ -2,8 +2,8 @@
  (public_name type_driven_search.index)
  (name index)
  (modules index)
- (libraries binary_search compare signature)
- (foreign_archives ../fs ../camlite))
+ (libraries binary_search compare signature unix)
+ (foreign_archives ../camlite))
 
 (library
  (name binary_search)
