@@ -10,13 +10,31 @@
             "problemMatcher": [],
             "group": "build"
         },
-                {
+        {
             "label": "make test",
             "type": "shell",
             "command": "make",
-            "args": ["test"],
+            "args": [
+                "test"
+            ],
             "problemMatcher": [],
             "group": "test"
+        },
+        {
+            "label": "Promote",
+            "type": "process",
+            "command": "make",
+            "args": [
+                "test-promote"
+            ],
+            "presentation": {
+                "echo": false,
+                "reveal": "never",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": true
+            }
         }
     ]
 }
