@@ -86,12 +86,15 @@ module Ctype = struct
   let parser : t Parsers.t =
     let open Parsers in
     discard whitespaces
-    ||> longest_of [ identifier; unsigned; keyword "..." ]
-    |>> reject_reserved_keywords
+    ||> (option (keyword "const") |/ Option.is_some)
     |. whitespaces
-    |* zero_or_more qualifier_parser
-    |/ fun (id, stars) ->
-    qualify (if String.equal id "..." then Var_Args else Atom id) stars
+    |* (longest_of [ identifier; unsigned; keyword "..." ] |>> reject_reserved_keywords)
+    |. whitespaces
+    |** zero_or_more qualifier_parser
+    |/ fun (const, id, qualifiers) ->
+    let base = if String.equal id "..." then Var_Args else Atom id in
+    let west_consted = if const then Const base else base in
+    qualify west_consted qualifiers
   ;;
 
   let parse param =

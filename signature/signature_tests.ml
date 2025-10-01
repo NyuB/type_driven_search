@@ -39,19 +39,14 @@ let test_const =
   @@ Testability.make_signature "void" [ "char const*" ]
 ;;
 
+let test_west_const =
+  signature_parsing_test "void (const char*)"
+  @@ Testability.make_signature "void" [ "char const*" ]
+;;
+
 let test_unsigned =
   signature_parsing_test "void (unsigned int)"
   @@ Testability.make_signature "void" [ "unsigned int" ]
-;;
-
-let test_only_east_const =
-  ( "~const t~ => t const"
-  , fun () ->
-      Alcotest.check
-        (Alcotest.option Testability.signature_testable)
-        "West const not recognized"
-        None
-        (Signature.parse "int(const char*)") )
 ;;
 
 let test_const_is_not_a_type =
@@ -120,8 +115,8 @@ let () =
            ; test_pointer
            ; test_condense_pointer
            ; test_const
+           ; test_west_const
            ; test_unsigned
-           ; test_only_east_const
            ; test_const_is_not_a_type
            ; test_identifier_can_contain_number
            ; test_identifier_cannot_start_with_number

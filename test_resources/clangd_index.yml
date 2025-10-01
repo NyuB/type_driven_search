@@ -16,9 +16,9 @@ CanonicalDeclaration:
     Line:            3937
     Column:          27
 Flags:           25
-Signature:       '(char const*filename, sqlite3 **ppDb)'
+Signature:       '(const char*filename, sqlite3 **ppDb)'
 TemplateSpecializationArgs: ''
-CompletionSnippetSuffix: '(${1:char const*filename}, ${2:sqlite3 **ppDb})'
+CompletionSnippetSuffix: '(${1:const char *filename}, ${2:sqlite3 **ppDb})'
 Documentation: "Awesome function"
 ReturnType:      int
 Type:            'c:I'
@@ -42,9 +42,9 @@ CanonicalDeclaration:
     Line:            3937
     Column:          27
 Flags:           25
-Signature:       '(char const*filename, sqlite3 **ppDb)'
+Signature:       '(const char*filename, sqlite3 **ppDb)'
 TemplateSpecializationArgs: ''
-CompletionSnippetSuffix: '(${1:char const*filename}, ${2:sqlite3 **ppDb})'
+CompletionSnippetSuffix: '(${1:const char*filename}, ${2:sqlite3 **ppDb})'
 Documentation: "Duplicated to test multiple documents"
 ReturnType:      int
 Type:            'c:I'
