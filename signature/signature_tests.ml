@@ -99,6 +99,12 @@ let test_most_famous_declaration =
     { name = "main"; signature = Testability.make_signature "int" [ "int"; "char**" ] }
 ;;
 
+let test_ignore_param_names =
+  declaration_parsing_test
+    "int main(int argc, char** argv);"
+    { name = "main"; signature = Testability.make_signature "int" [ "int"; "char**" ] }
+;;
+
 let test (name, exec) = Alcotest.test_case name `Quick exec
 let suite (name, tests) = name, List.map test tests
 let suites l = List.map suite l
@@ -121,6 +127,6 @@ let () =
            ; test_identifier_cannot_start_with_number
            ; test_varargs_parameter
            ] )
-       ; "Declaration parsing", [ test_most_famous_declaration ]
+       ; "Declaration parsing", [ test_most_famous_declaration; test_ignore_param_names ]
        ]
 ;;

@@ -206,6 +206,11 @@ module CFunction = struct
     let equal a b = Compare.equality compare a b
   end
 
+  let type_and_opt_param =
+    let open Parsers in
+    Ctype.parser |. whitespaces |. option identifier
+  ;;
+
   let parser =
     let open Parsers in
     Ctype.parser
@@ -216,7 +221,7 @@ module CFunction = struct
           ~prefix:(keyword "(")
           ~suffix:(keyword ")")
           ~sep:(whitespaces |. keyword ",")
-          (whitespaces ||> Ctype.parser)
+          (whitespaces ||> type_and_opt_param)
     |. whitespaces
     |. keyword ";"
     |/ fun (return, name, params) -> { name; signature = { return; params } }
