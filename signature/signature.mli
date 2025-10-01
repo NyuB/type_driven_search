@@ -3,6 +3,7 @@ module Ctype : sig
     | Atom of string
     | Const of t
     | Pointer of t
+    | Ref of t
     | Var_Args
 
   val compare : t -> t -> int

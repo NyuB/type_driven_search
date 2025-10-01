@@ -21,6 +21,8 @@ Explain
   a function returning a void from (an immutable pointer to a pointer to a pointer to an immutable pointer to an int)
   $ type_driven_search explain "void (unsigned int*)"
   a function returning a void from (a pointer to an unsigned int)
+  $ type_driven_search explain "int (int &, int&)"
+  a function returning an int from (a reference to an int, a reference to an int)
 
 Index  
   $ type_driven_search index create index.sqlite

@@ -3,6 +3,7 @@ module Ctype = struct
     | Atom of string
     | Const of t
     | Pointer of t
+    | Ref of t
     | Var_Args
 
   (* Comparisons *)
@@ -11,7 +12,7 @@ module Ctype = struct
       match a, b with
       (* Handle all 'same tag' cases*)
       | Atom sa, Atom sb -> String.compare sa sb
-      | Pointer a, Pointer b | Const a, Const b -> compare a b
+      | Pointer a, Pointer b | Const a, Const b | Ref a, Ref b -> compare a b
       | Var_Args, Var_Args -> 0
       (* Handle all 'differing tag' cases, descending order from Atom *)
       | Atom _, _ -> 1
@@ -20,6 +21,8 @@ module Ctype = struct
       | _, Const _ -> -1
       | Pointer _, _ -> 1
       | _, Pointer _ -> -1
+      | Ref _, _ -> 1
+      | _, Ref _ -> -1
     ;;
 
     let equal a b = Compare.equality compare a b
@@ -91,10 +94,12 @@ module Ctype = struct
     |* (longest_of [ identifier; unsigned; keyword "..." ] |>> reject_reserved_keywords)
     |. whitespaces
     |** zero_or_more qualifier_parser
-    |/ fun (const, id, qualifiers) ->
+    |*** (option (keyword "&") |/ Option.is_some)
+    |/ fun (const, id, qualifiers, is_ref) ->
     let base = if String.equal id "..." then Var_Args else Atom id in
     let west_consted = if const then Const base else base in
-    qualify west_consted qualifiers
+    let qualified = qualify west_consted qualifiers in
+    if is_ref then Ref qualified else qualified
   ;;
 
   let parse param =
@@ -108,10 +113,13 @@ module Ctype = struct
     | Atom s -> s
     | Const t ->
       let ts = string_of_t t in
-      String.cat ts " const"
+      ts ^ " const"
     | Pointer p ->
       let ps = string_of_t p in
-      String.cat ps "*"
+      ps ^ "*"
+    | Ref r ->
+      let rs = string_of_t r in
+      rs ^ "&"
     | Var_Args -> "..."
   ;;
 
@@ -129,6 +137,7 @@ module Ctype = struct
       in
       String.cat prefix a
     | Pointer t -> Printf.sprintf "%spointer to %s" (prefix "a ") (explain true t)
+    | Ref t -> Printf.sprintf "%sreference to %s" (prefix "a ") (explain true t)
     | Const t -> Printf.sprintf "%simmutable %s" (prefix "an ") (explain false t)
     | Var_Args -> Printf.sprintf "%svariadic number of arguments" (prefix "a ")
   ;;

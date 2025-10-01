@@ -78,6 +78,11 @@ let test_varargs_parameter =
   @@ Testability.make_signature "void" [ "char const*"; "..." ]
 ;;
 
+let test_ref =
+  signature_parsing_test "int(int&, int&)"
+  @@ Testability.make_signature "int" [ "int&"; "int&" ]
+;;
+
 let declaration_parsing_test input expected =
   ( Printf.sprintf "%s is parsed correctly" input
   , fun () ->
@@ -121,6 +126,7 @@ let () =
            ; test_identifier_can_contain_number
            ; test_identifier_cannot_start_with_number
            ; test_varargs_parameter
+           ; test_ref
            ] )
        ; "Declaration parsing", [ test_most_famous_declaration; test_ignore_param_names ]
        ]
