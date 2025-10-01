@@ -1,0 +1,56 @@
+# Extracted and stripped from sqlite header with the command:
+# clangd-indexer --format=yaml --executor=all-TUs compile_commands.json
+--- !Symbol
+ID:              04AE4B6BA5188AA3
+Name:            sqlite3_open_1
+Scope:           ''
+SymInfo:
+  Kind:            Function
+  Lang:            C
+CanonicalDeclaration:
+  FileURI:         'sqlite3.h'
+  Start:
+    Line:            3937
+    Column:          15
+  End:
+    Line:            3937
+    Column:          27
+Flags:           25
+Signature:       '(const char *filename, sqlite3 **ppDb)'
+TemplateSpecializationArgs: ''
+CompletionSnippetSuffix: '(${1:const char *filename}, ${2:sqlite3 **ppDb})'
+Documentation: "Awesome function"
+ReturnType:      int
+Type:            'c:I'
+IncludeHeaders:
+  - Header:          'sqlite3.h'
+    References:      1
+...
+--- !Symbol
+ID:              123567891234567
+Name:            sqlite3_open_2
+Scope:           ''
+SymInfo:
+  Kind:            Function
+  Lang:            C
+CanonicalDeclaration:
+  FileURI:         'sqlite3.h'
+  Start:
+    Line:            3937
+    Column:          15
+  End:
+    Line:            3937
+    Column:          27
+Flags:           25
+Signature:       '(const char *filename, sqlite3 **ppDb)'
+TemplateSpecializationArgs: ''
+CompletionSnippetSuffix: '(${1:const char *filename}, ${2:sqlite3 **ppDb})'
+Documentation: "Duplicated to test multiple documents"
+ReturnType:      int
+Type:            'c:I'
+IncludeHeaders:
+  - Header:          'sqlite3.h'
+    References:      1
+...
+
+

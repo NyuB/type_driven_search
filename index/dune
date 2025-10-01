@@ -6,6 +6,22 @@
  (foreign_archives ../camlite))
 
 (library
+ (name clangd_adapter)
+ (modules clangd_adapter)
+ (libraries compare signature)
+ (preprocess
+  (pps ppx_deriving_yaml)))
+
+(library
+ (name clangd_adapter_expect_tests)
+ (modules clangd_adapter_expect_tests)
+ (libraries clangd_adapter)
+ (inline_tests
+  (deps ../test_resources/clangd_index.yml))
+ (preprocess
+  (pps ppx_expect)))
+
+(library
  (name binary_search)
  (package type_driven_search)
  (modules binary_search)
