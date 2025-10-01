@@ -8,7 +8,7 @@
 (library
  (name clangd_adapter)
  (modules clangd_adapter)
- (libraries compare signature)
+ (libraries signature parsers)
  (preprocess
   (pps ppx_deriving_yaml)))
 

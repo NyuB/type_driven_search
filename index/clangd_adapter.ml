@@ -72,6 +72,28 @@ let read_clangd_index_file f =
 
 let ( >> ) g f = Fun.compose f g
 
+let parser =
+  let open Parsers in
+  let type_and_opt_param = Signature.Ctype.parser |. whitespaces |. option identifier in
+  list
+    ~prefix:(keyword "(")
+    ~suffix:(keyword ")")
+    ~sep:(whitespaces |. keyword ",")
+    (whitespaces ||> type_and_opt_param)
+;;
+
+let cfunction_of_symbol { name; symInfo = { kind; _ }; signature; returnType; _ } =
+  if not @@ String.equal kind "Function"
+  then None
+  else
+    Parsers.parse_full parser signature
+    |> Option.map (fun params ->
+      let (signature : Signature.t) =
+        { params; return = Signature.Ctype.parse returnType }
+      in
+      ({ name; signature } : Signature.CFunction.t))
+;;
+
 let ingest file =
   file
   |> read_clangd_index_file
@@ -81,4 +103,5 @@ let ingest file =
         >> function
         | Error (`Msg m) -> failwith m
         | Ok v -> v)
+  |> List.filter_map cfunction_of_symbol
 ;;
