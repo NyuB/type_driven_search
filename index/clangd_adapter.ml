@@ -66,8 +66,7 @@ let read_clangd_index_file f =
       else aux documents current_document ic
     | exception End_of_file -> List.rev documents
   in
-  let ic = open_in f in
-  Fun.protect ~finally:(fun () -> close_in ic) @@ fun () -> aux [] [] ic
+  In_channel.with_open_text f @@ fun ic -> aux [] [] ic
 ;;
 
 let ( >> ) g f = Fun.compose f g

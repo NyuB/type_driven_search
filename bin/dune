@@ -2,7 +2,7 @@
  (public_name type_driven_search)
  (name type_driven_search)
  (modules type_driven_search)
- (libraries index signature))
+ (libraries index clangd_adapter signature))
 
 (executable
  (public_name benchmark)

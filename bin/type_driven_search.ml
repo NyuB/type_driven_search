@@ -34,7 +34,9 @@ let explain args =
 ;;
 
 module IndexCommand = struct
-  type functions_format = C_Declarations
+  type functions_format =
+    | C_Declarations
+    | Clangd_Index_Yaml
 
   type options =
     { index_id : string
@@ -72,6 +74,7 @@ module IndexCommand = struct
       let format =
         match trim_opt format_opt arg with
         | "c" -> C_Declarations
+        | "yaml" -> Clangd_Index_Yaml
         | other -> exit_with (Printf.sprintf "unsupported format: '%s'" other) 2
       in
       { config with format }, args)
@@ -99,20 +102,23 @@ module IndexCommand = struct
       List.iter (fun f -> print_endline @@ Signature.CFunction.string_of_t f) fs
   ;;
 
-  let ingest (type i) (module I : Index.S with type t = i) (index : i) from format =
-    let parse =
-      match format with
-      | C_Declarations -> Signature.CFunction.parse
-    in
+  let ingest_c from =
     In_channel.with_open_text from
     @@ fun ic ->
-    let lines =
-      In_channel.input_lines ic
-      |> List.filter @@ Fun.negate @@ String.starts_with ~prefix:"//"
-      |> List.map (fun l ->
-        parse l |> or_exit (Printf.sprintf "Invalid C function declaration: '%s'" l) 3)
+    In_channel.input_lines ic
+    |> List.filter @@ Fun.negate @@ String.starts_with ~prefix:"//"
+    |> List.map (fun l ->
+      Signature.CFunction.parse l
+      |> or_exit (Printf.sprintf "Invalid C function declaration: '%s'" l) 3)
+  ;;
+
+  let ingest (type i) (module I : Index.S with type t = i) (index : i) from format =
+    let functions =
+      match format with
+      | C_Declarations -> ingest_c from
+      | Clangd_Index_Yaml -> Clangd_adapter.ingest from
     in
-    I.store index lines
+    I.store index functions
   ;;
 
   let run args =
