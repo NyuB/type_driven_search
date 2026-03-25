@@ -1,15 +1,20 @@
   $ type_driven_search
   Usage: type_driven_search <command>
-  Where command is one of { help; explain; index }
-  help: print this help message
-  explain <signature>: explains the C function <signature>
+  Where <command> is one of { help; explain; index; ingest }
+  help                                      : print this help message
+  explain <signature>                       : explains the C function <signature>
   index [opts] { create; get; store; serve }: store and retrieve functions by signature
-  |-- create <index>: initialize an empty index into the <index> file
+  |-- create <index>                  : initialize an empty index into the <index> file
   |-- store <index> <name> <signature>: stores the function <name> with the given <signature> into <index>
-  |-- get <index> <signature>: list all functions stored within <index> having exactly <signature>
-  |-- query <index> <query>: list all functions stored within <index> matching <query>
-  |-- serve <index>: enter an interactive mode waiting for queries on the standard input
-  | --index=<index-id>: choose the indexing method where <index-id> is one of { FileBased (default); FileBasedSorted }
+  |-- get <index> <signature>         : list all functions stored within <index> having exactly <signature>
+  |-- query <index> <query>           : list all functions stored within <index> matching <query>
+  |-- serve <index>                   : enter an interactive mode waiting for queries on the standard input
+  |-- ingest <index> <ingested-file>  : stores all signatures from <ingested-file> into <index>.
+  |-- [opts]
+  |   --index=<index-id>: choose the indexing method where <index-id> is one of { SqliteBased (default); FileBasedSorted; FileBased }
+  |   --format=<format> where <format> is one of { c; yaml }
+          c   : <ingested-file> must be a c-style declarations file
+          yaml: <ingested-file> must be a clangd-index in yaml format
   [1]
 
 Explain  
@@ -66,8 +71,16 @@ Ingest
   int wredrawln(WINDOW*, int, int)
   int wresize(WINDOW*, int, int)
   int wsetscrreg(WINDOW*, int, int)
+  $ rm index.txt
+
+  $ type_driven_search index --index="FileBasedSorted" ingest --format=yaml index.txt test_resources/clangd_index.yml
+  $ type_driven_search index --index="FileBasedSorted" get index.txt "int (const char*, sqlite3**)" | sort
+  int sqlite3_open_1(char const*, sqlite3**)
+  int sqlite3_open_2(char const*, sqlite3**)
+  $ rm index.txt
 
 Query
+  $ type_driven_search index --index="FileBasedSorted" ingest --format=c index.txt test_resources/curses.h
   $ type_driven_search index --index="FileBasedSorted" query index.txt "int(WINDOW*, int, int, int)" | sort
   int copywin(WINDOW const*, WINDOW*, int, int, int, int, int, int, int)
   int mvwadd_wchnstr(WINDOW*, int, int, cchar_t const*, int)
@@ -95,4 +108,7 @@ Query
 Error cases
   $ type_driven_search index --index="Oops" create index.txt
   Invalid index type: 'Oops'
+  [2]
+  $ type_driven_search index ingest --format="oops" index.txt test_resources/clangd_index.yml
+  unsupported format: 'oops'
   [2]

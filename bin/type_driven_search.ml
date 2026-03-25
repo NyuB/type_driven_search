@@ -1,16 +1,21 @@
 let usage_and_exit code =
   print_endline (Printf.sprintf "Usage: %s <command>" Sys.argv.(0));
   print_endline
-    {|Where command is one of { help; explain; index }
-help: print this help message
-explain <signature>: explains the C function <signature>
+    {|Where <command> is one of { help; explain; index; ingest }
+help                                      : print this help message
+explain <signature>                       : explains the C function <signature>
 index [opts] { create; get; store; serve }: store and retrieve functions by signature
-|-- create <index>: initialize an empty index into the <index> file
+|-- create <index>                  : initialize an empty index into the <index> file
 |-- store <index> <name> <signature>: stores the function <name> with the given <signature> into <index>
-|-- get <index> <signature>: list all functions stored within <index> having exactly <signature>
-|-- query <index> <query>: list all functions stored within <index> matching <query>
-|-- serve <index>: enter an interactive mode waiting for queries on the standard input
-| --index=<index-id>: choose the indexing method where <index-id> is one of { FileBased (default); FileBasedSorted }|};
+|-- get <index> <signature>         : list all functions stored within <index> having exactly <signature>
+|-- query <index> <query>           : list all functions stored within <index> matching <query>
+|-- serve <index>                   : enter an interactive mode waiting for queries on the standard input
+|-- ingest <index> <ingested-file>  : stores all signatures from <ingested-file> into <index>.
+|-- [opts]
+|   --index=<index-id>: choose the indexing method where <index-id> is one of { SqliteBased (default); FileBasedSorted; FileBased }
+|   --format=<format> where <format> is one of { c; yaml }
+        c   : <ingested-file> must be a c-style declarations file
+        yaml: <ingested-file> must be a clangd-index in yaml format|};
   exit code
 ;;
 
