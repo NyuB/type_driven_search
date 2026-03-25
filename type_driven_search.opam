@@ -9,9 +9,12 @@ homepage: "https://github.com/NyuB/type_driven_search"
 doc: "https://github.com/NyuB/type_driven_search"
 bug-reports: "https://github.com/NyuB/type_driven_search/issues"
 depends: [
-  "ocaml"
-  "dune" {>= "3.16"}
-  "ocamlformat" {with-test}
+  "ocaml" {>= "5.4"}
+  "dune" {>= "3.22" & >= "3.22"}
+  "ppx_deriving_yaml" {>= "0.4"}
+  "alcotest" {with-test & >= "1.9"}
+  "ocamlformat" {with-test & >= "0.29"}
+  "ppx_expect" {with-test & >= "0.17"}
   "odoc" {with-doc}
 ]
 build: [
@@ -29,3 +32,4 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/NyuB/type_driven_search.git"
+x-maintenance-intent: ["(latest)"]
